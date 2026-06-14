@@ -355,8 +355,8 @@ public class HomeView {
         txtNominal.setPromptText("Nominal (Contoh: 50000)");
 
         ComboBox<String> cmbKategori = new ComboBox<>();
-        cmbKategori.getItems().addAll("Konsumsi Makanan", "Transportasi", "Pendidikan", "Pemasukan Gaji", "Pemasukan Hibah", "Lainnya");
-        cmbKategori.setValue("Konsumsi Makanan");
+        cmbKategori.getItems().addAll("Konsumsi Makanan", "Transportasi", "Pendidikan", "Pemasukan Gaji", "Tabungan", "Kesehatan", "Hiburan", "Lainnya");
+        cmbKategori.setValue("Pilih Kategori...");
         cmbKategori.setMaxWidth(Double.MAX_VALUE);
 
         DatePicker dpTanggal = new DatePicker();

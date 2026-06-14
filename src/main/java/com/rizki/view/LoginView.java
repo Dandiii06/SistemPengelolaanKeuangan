@@ -1,10 +1,22 @@
 package com.rizki.view;
 
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+
+import com.rizki.model.Database.DatabaseHelper;
+
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Parent;
-import javafx.scene.control.*;
-import javafx.scene.layout.*;
+import javafx.scene.control.Button;
+import javafx.scene.control.Label;
+import javafx.scene.control.PasswordField;
+import javafx.scene.control.TextField;
+import javafx.scene.layout.HBox;
+import javafx.scene.layout.Priority;
+import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
@@ -120,7 +132,31 @@ public class LoginView {
                 lblError.setText("Username dan Password tidak boleh kosong!");
                 lblError.setVisible(true);
             } else {
-                ViewManager.showHomeView(username);
+                String query = "SELECT nama FROM users WHERE username = ? AND password = ?";
+                try (Connection conn = DatabaseHelper.getConnection();
+                    PreparedStatement stmt = conn.prepareStatement(query)) {
+            
+                    stmt.setString(1, username);
+                    stmt.setString(2, password);
+            
+                    ResultSet rs = stmt.executeQuery();
+                    if (rs.next()) {
+                        // Jika data ditemukan, ambil kolom 'nama' asli dari database
+                        // String namaAsli = rs.getString("nama");
+                        lblError.setVisible(false);
+                        String namaAsli = username;
+                        // Pindah ke dashboard dengan nama asli
+                        ViewManager.showHomeView(namaAsli);
+                    } else {
+                        // Jika data tidak ditemukan
+                        lblError.setText("Username atau Password salah!");
+                        lblError.setVisible(true);
+                    }
+                } catch (SQLException ex) {
+                    lblError.setText("Terjadi kesalahan database: " + ex.getMessage());
+                    lblError.setVisible(true);
+                    ex.printStackTrace();
+                }
             }
         });
 

@@ -2,6 +2,7 @@ C:\Users\rizki\OneDrive\Documents\dokumen penting\TA\TA DPBO\SistemPengelolaanKe
 C:\Users\rizki\OneDrive\Documents\dokumen penting\TA\TA DPBO\SistemPengelolaanKeuangan\src\main\java\com\rizki\model\Anggaran\Anggaran.java
 C:\Users\rizki\OneDrive\Documents\dokumen penting\TA\TA DPBO\SistemPengelolaanKeuangan\src\main\java\com\rizki\model\Anggaran\Kategori.java
 C:\Users\rizki\OneDrive\Documents\dokumen penting\TA\TA DPBO\SistemPengelolaanKeuangan\src\main\java\com\rizki\model\Anggaran\PeriodeAnggaran.java
+C:\Users\rizki\OneDrive\Documents\dokumen penting\TA\TA DPBO\SistemPengelolaanKeuangan\src\main\java\com\rizki\model\Database\DatabaseHelper.java
 C:\Users\rizki\OneDrive\Documents\dokumen penting\TA\TA DPBO\SistemPengelolaanKeuangan\src\main\java\com\rizki\model\keuangan\Pemasukan.java
 C:\Users\rizki\OneDrive\Documents\dokumen penting\TA\TA DPBO\SistemPengelolaanKeuangan\src\main\java\com\rizki\model\keuangan\Pengeluaran.java
 C:\Users\rizki\OneDrive\Documents\dokumen penting\TA\TA DPBO\SistemPengelolaanKeuangan\src\main\java\com\rizki\model\keuangan\Transaksi.java
@@ -15,6 +16,7 @@ C:\Users\rizki\OneDrive\Documents\dokumen penting\TA\TA DPBO\SistemPengelolaanKe
 C:\Users\rizki\OneDrive\Documents\dokumen penting\TA\TA DPBO\SistemPengelolaanKeuangan\src\main\java\com\rizki\model\Pengguna\Dompet.java
 C:\Users\rizki\OneDrive\Documents\dokumen penting\TA\TA DPBO\SistemPengelolaanKeuangan\src\main\java\com\rizki\model\Pengguna\Profile.java
 C:\Users\rizki\OneDrive\Documents\dokumen penting\TA\TA DPBO\SistemPengelolaanKeuangan\src\main\java\com\rizki\model\Pengguna\User.java
+C:\Users\rizki\OneDrive\Documents\dokumen penting\TA\TA DPBO\SistemPengelolaanKeuangan\src\main\java\com\rizki\TestKoneksi.java
 C:\Users\rizki\OneDrive\Documents\dokumen penting\TA\TA DPBO\SistemPengelolaanKeuangan\src\main\java\com\rizki\view\HomeView.java
 C:\Users\rizki\OneDrive\Documents\dokumen penting\TA\TA DPBO\SistemPengelolaanKeuangan\src\main\java\com\rizki\view\LoginView.java
 C:\Users\rizki\OneDrive\Documents\dokumen penting\TA\TA DPBO\SistemPengelolaanKeuangan\src\main\java\com\rizki\view\RegisterView.java

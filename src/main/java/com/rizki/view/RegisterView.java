@@ -1,10 +1,21 @@
 package com.rizki.view;
 
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.SQLException;
+
+import com.rizki.model.Database.DatabaseHelper;
+
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Parent;
-import javafx.scene.control.*;
-import javafx.scene.layout.*;
+import javafx.scene.control.Button;
+import javafx.scene.control.Label;
+import javafx.scene.control.PasswordField;
+import javafx.scene.control.TextField;
+import javafx.scene.layout.HBox;
+import javafx.scene.layout.Priority;
+import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
@@ -156,10 +167,46 @@ public class RegisterView {
                 lblSuccess.setVisible(false);
             } else {
                 try {
-                    Double.parseDouble(saldoStr);
-                    lblError.setVisible(false);
-                    lblSuccess.setText("Registrasi berhasil! Silakan masuk.");
-                    lblSuccess.setVisible(true);
+                    double saldo = Double.parseDouble(saldoStr);
+            
+                    // Jalankan query INSERT untuk menyimpan data pengguna baru
+                    String query = "INSERT INTO users (nama, nim, email, username, password, saldo_awal) VALUES (?, ?, ?, ?, ?, ?)";
+            
+                    try (Connection conn = DatabaseHelper.getConnection();
+                        PreparedStatement stmt = conn.prepareStatement(query)) {
+                
+                        stmt.setString(1, name);
+                        stmt.setString(2, nim);
+                        stmt.setString(3, email);
+                        stmt.setString(4, username);
+                        stmt.setString(5, password);
+                        stmt.setDouble(6, saldo);
+                
+                        stmt.executeUpdate(); // Menyimpan ke database
+                
+                        lblError.setVisible(false);
+                        String namaAsli = username;
+
+                        ViewManager.showHomeView(namaAsli);
+
+                        // lblSuccess.setText("Registrasi berhasil! Silakan masuk.");
+                        // lblSuccess.setVisible(true);
+                
+                        //bersihkan input form setelah berhasil daftar
+                        // txtNama.clear();
+                        // txtNim.clear();
+                        // txtEmail.clear();
+                        // txtUsername.clear();
+                        // txtPassword.clear();
+                        // txtSaldoAwal.clear();
+                
+                    } catch (SQLException ex) {
+                        lblError.setText("Pendaftaran gagal! Username/NIM/Email mungkin sudah terdaftar.");
+                        lblError.setVisible(true);
+                        lblSuccess.setVisible(false);
+                        ex.printStackTrace();
+                    }
+            
                 } catch (NumberFormatException ex) {
                     lblError.setText("Saldo awal harus berupa angka!");
                     lblError.setVisible(true);
