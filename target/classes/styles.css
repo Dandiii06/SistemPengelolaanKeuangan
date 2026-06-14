@@ -1,0 +1,176 @@
+.root {
+    -fx-background-color: #0f172a;
+    -fx-font-family: 'Segoe UI', 'Roboto', 'Helvetica Neue', sans-serif;
+}
+
+.card {
+    -fx-background-color: #1e293b;
+    -fx-background-radius: 16px;
+    -fx-border-radius: 16px;
+    -fx-border-color: #334155;
+    -fx-border-width: 1px;
+    -fx-padding: 30px;
+}
+
+.text-field, .password-field {
+    -fx-background-color: #0f172a;
+    -fx-text-fill: #f8fafc;
+    -fx-prompt-text-fill: #64748b;
+    -fx-background-radius: 8px;
+    -fx-border-radius: 8px;
+    -fx-border-color: #334155;
+    -fx-border-width: 1.5px;
+    -fx-padding: 10px 14px;
+    -fx-font-size: 14px;
+}
+
+.text-field:focused, .password-field:focused {
+    -fx-border-color: #6366f1;
+    -fx-effect: dropshadow(three-pass-box, rgba(99, 102, 241, 0.4), 8, 0, 0, 0);
+}
+
+.button-primary {
+    -fx-background-color: linear-gradient(to right, #6366f1, #8b5cf6);
+    -fx-text-fill: #ffffff;
+    -fx-font-weight: bold;
+    -fx-font-size: 14px;
+    -fx-background-radius: 8px;
+    -fx-padding: 12px 24px;
+    -fx-cursor: hand;
+}
+
+.button-primary:hover {
+    -fx-background-color: linear-gradient(to right, #4f46e5, #7c3aed);
+}
+
+.button-secondary {
+    -fx-background-color: transparent;
+    -fx-text-fill: #94a3b8;
+    -fx-font-size: 14px;
+    -fx-border-color: #334155;
+    -fx-border-width: 1.5px;
+    -fx-border-radius: 8px;
+    -fx-background-radius: 8px;
+    -fx-padding: 10px 20px;
+    -fx-cursor: hand;
+}
+
+.button-secondary:hover {
+    -fx-background-color: #1e293b;
+    -fx-text-fill: #f8fafc;
+}
+
+.link-button {
+    -fx-background-color: transparent;
+    -fx-text-fill: #818cf8;
+    -fx-font-size: 14px;
+    -fx-cursor: hand;
+    -fx-underline: true;
+    -fx-padding: 0px;
+}
+
+.link-button:hover {
+    -fx-text-fill: #a5b4fc;
+}
+
+.label-title {
+    -fx-text-fill: #f8fafc;
+    -fx-font-size: 28px;
+    -fx-font-weight: bold;
+}
+
+.label-subtitle {
+    -fx-text-fill: #94a3b8;
+    -fx-font-size: 14px;
+}
+
+.sidebar {
+    -fx-background-color: #0f172a;
+    -fx-border-color: transparent #1e293b transparent transparent;
+    -fx-border-width: 0px 1px 0px 0px;
+    -fx-padding: 20px;
+}
+
+.sidebar-button {
+    -fx-background-color: transparent;
+    -fx-text-fill: #94a3b8;
+    -fx-font-size: 14px;
+    -fx-font-weight: bold;
+    -fx-alignment: center-left;
+    -fx-padding: 12px 18px;
+    -fx-cursor: hand;
+    -fx-border-width: 0px;
+    -fx-background-radius: 6px;
+}
+
+.sidebar-button:hover {
+    -fx-background-color: #1e293b;
+    -fx-text-fill: #f8fafc;
+}
+
+.sidebar-button-active {
+    -fx-background-color: #1e293b;
+    -fx-text-fill: #6366f1;
+    -fx-border-color: transparent transparent transparent #6366f1;
+    -fx-border-width: 0px 0px 0px 4px;
+}
+
+.main-content {
+    -fx-background-color: #0b0f19;
+    -fx-padding: 30px;
+}
+
+.metric-card-primary {
+    -fx-background-color: linear-gradient(to bottom right, #6366f1, #3b82f6);
+    -fx-background-radius: 16px;
+    -fx-padding: 24px;
+    -fx-effect: dropshadow(three-pass-box, rgba(99, 102, 241, 0.2), 15, 0, 0, 4);
+}
+
+.metric-card-success {
+    -fx-background-color: linear-gradient(to bottom right, #059669, #10b981);
+    -fx-background-radius: 16px;
+    -fx-padding: 24px;
+    -fx-effect: dropshadow(three-pass-box, rgba(16, 185, 129, 0.2), 15, 0, 0, 4);
+}
+
+.metric-card-danger {
+    -fx-background-color: linear-gradient(to bottom right, #dc2626, #f43f5e);
+    -fx-background-radius: 16px;
+    -fx-padding: 24px;
+    -fx-effect: dropshadow(three-pass-box, rgba(244, 63, 94, 0.2), 15, 0, 0, 4);
+}
+
+.metric-title {
+    -fx-text-fill: rgba(255, 255, 255, 0.85);
+    -fx-font-size: 13px;
+    -fx-font-weight: bold;
+}
+
+.metric-value {
+    -fx-text-fill: #ffffff;
+    -fx-font-size: 26px;
+    -fx-font-weight: bold;
+}
+
+.table-header {
+    -fx-text-fill: #f8fafc;
+    -fx-font-weight: bold;
+    -fx-font-size: 16px;
+}
+
+.form-label {
+    -fx-text-fill: #cbd5e1;
+    -fx-font-size: 13px;
+    -fx-font-weight: bold;
+}
+
+.error-label {
+    -fx-text-fill: #f43f5e;
+    -fx-font-size: 12px;
+}
+
+.success-label {
+    -fx-text-fill: #10b981;
+    -fx-font-size: 12px;
+}
