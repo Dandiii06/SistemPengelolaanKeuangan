@@ -4,11 +4,11 @@ public class Profile {
     private String nama;
     private String nim;
     private String email;
-    private String Password;
+    private String password;
 
-    public Profile(String nama,String Password, String nim, String email) {
+    public Profile(String nama, String password, String nim, String email) {
         this.nama = nama;
-        this.Password = Password;
+        this.password = password;
         this.nim = nim;
         this.email = email;
     }
@@ -26,7 +26,11 @@ public class Profile {
     }
 
     public String getPassword() {
-        return Password;
+        return password;
+    }
+
+    public void setPassword(String password) {
+        this.password = password;
     }
 
     public void updateProfile(String nama, String email) {

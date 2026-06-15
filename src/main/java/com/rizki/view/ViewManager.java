@@ -7,6 +7,10 @@ public class ViewManager {
     private static Stage stage;
     private static String currentUsername = "Pengguna";
 
+    public static String getCurrentUsername() {
+        return currentUsername;
+    }
+
     public static void setStage(Stage mainStage) {
         stage = mainStage;
     }

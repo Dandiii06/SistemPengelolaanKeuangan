@@ -1,27 +1,295 @@
 package com.rizki.model.Manajemen;
 
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.util.ArrayList;
+import java.util.List;
+
+import com.rizki.model.Database.DatabaseHelper;
+import com.rizki.model.Pengguna.User;
+import com.rizki.model.Pengguna.Profile;
+import com.rizki.model.Pengguna.Dompet;
+import com.rizki.model.keuangan.Transaksi;
+import com.rizki.model.keuangan.Pemasukan;
+import com.rizki.model.keuangan.Pengeluaran;
+import com.rizki.model.Anggaran.Anggaran;
+import com.rizki.model.Anggaran.Kategori;
+import com.rizki.model.Anggaran.PeriodeAnggaran;
+
 public class DatabaseManager implements PenyimpananData {
     private String filePath;
 
     public DatabaseManager(String filePath) {
         this.filePath = filePath;
+        initDatabase();
+    }
+
+    private void initDatabase() {
+        try (Connection conn = DatabaseHelper.getConnection();
+             Statement stmt = conn.createStatement()) {
+            
+            // Buat tabel users jika belum ada (opsional, sudah ada tapi untuk memastikan)
+            stmt.executeUpdate("CREATE TABLE IF NOT EXISTS users (" +
+                    "id INT AUTO_INCREMENT PRIMARY KEY," +
+                    "nama VARCHAR(100)," +
+                    "nim VARCHAR(20) UNIQUE," +
+                    "email VARCHAR(100) UNIQUE," +
+                    "username VARCHAR(50) UNIQUE," +
+                    "password VARCHAR(255)," +
+                    "saldo_awal DOUBLE" +
+                    ")");
+
+            // Buat tabel transactions jika belum ada
+            stmt.executeUpdate("CREATE TABLE IF NOT EXISTS transactions (" +
+                    "id VARCHAR(50) PRIMARY KEY," +
+                    "username VARCHAR(50)," +
+                    "jumlah DOUBLE," +
+                    "tanggal VARCHAR(20)," +
+                    "catatan TEXT," +
+                    "tipe VARCHAR(20)," +
+                    "detail_source VARCHAR(100)" +
+                    ")");
+            
+            // Buat tabel budgets jika belum ada
+            stmt.executeUpdate("CREATE TABLE IF NOT EXISTS budgets (" +
+                    "id INT AUTO_INCREMENT PRIMARY KEY," +
+                    "username VARCHAR(50)," +
+                    "kategori VARCHAR(100)," +
+                    "batas_maksimal DOUBLE," +
+                    "periode VARCHAR(50)," +
+                    "total_terpakai DOUBLE" +
+                    ")");
+            
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
     }
 
     @Override
     public boolean saveToStorage(Object data) {
-        if (data == null || filePath == null || filePath.isEmpty()) {
+        if (data == null) {
             return false;
         }
-        // TODO: Implementasikan penyimpanan data ke file
-        return true;
+
+        if (data instanceof User) {
+            User user = (User) data;
+            Profile profile = user.getProfil();
+            Dompet dompet = user.getDompet();
+            
+            if (profile == null || dompet == null) return false;
+
+            // Cek apakah user sudah ada di database
+            boolean exists = false;
+            String checkQuery = "SELECT COUNT(*) FROM users WHERE username = ?";
+            try (Connection conn = DatabaseHelper.getConnection();
+                 PreparedStatement checkStmt = conn.prepareStatement(checkQuery)) {
+                checkStmt.setString(1, user.getUsername());
+                try (ResultSet rs = checkStmt.executeQuery()) {
+                    if (rs.next() && rs.getInt(1) > 0) {
+                        exists = true;
+                    }
+                }
+            } catch (SQLException e) {
+                e.printStackTrace();
+                return false;
+            }
+
+            if (exists) {
+                // Update
+                String updateQuery = "UPDATE users SET nama = ?, nim = ?, email = ?, password = ?, saldo_awal = ? WHERE username = ?";
+                try (Connection conn = DatabaseHelper.getConnection();
+                     PreparedStatement stmt = conn.prepareStatement(updateQuery)) {
+                    stmt.setString(1, profile.getNama());
+                    stmt.setString(2, profile.getNim());
+                    stmt.setString(3, profile.getEmail());
+                    stmt.setString(4, user.getPassword());
+                    stmt.setDouble(5, dompet.getSaldo());
+                    stmt.setString(6, user.getUsername());
+                    stmt.executeUpdate();
+                    return true;
+                } catch (SQLException e) {
+                    e.printStackTrace();
+                    return false;
+                }
+            } else {
+                // Insert
+                String insertQuery = "INSERT INTO users (nama, nim, email, username, password, saldo_awal) VALUES (?, ?, ?, ?, ?, ?)";
+                try (Connection conn = DatabaseHelper.getConnection();
+                     PreparedStatement stmt = conn.prepareStatement(insertQuery)) {
+                    stmt.setString(1, profile.getNama());
+                    stmt.setString(2, profile.getNim());
+                    stmt.setString(3, profile.getEmail());
+                    stmt.setString(4, user.getUsername());
+                    stmt.setString(5, user.getPassword());
+                    stmt.setDouble(6, dompet.getSaldo());
+                    stmt.executeUpdate();
+                    return true;
+                } catch (SQLException e) {
+                    e.printStackTrace();
+                    return false;
+                }
+            }
+        } else if (data instanceof Transaksi) {
+            Transaksi tx = (Transaksi) data;
+            String tipe = "";
+            String detailSource = "";
+            if (tx instanceof Pemasukan) {
+                tipe = "Pemasukan";
+                detailSource = ((Pemasukan) tx).getSumber();
+            } else if (tx instanceof Pengeluaran) {
+                tipe = "Pengeluaran";
+                Kategori cat = ((Pengeluaran) tx).getKategori();
+                detailSource = (cat != null) ? cat.getNamaKategori() : "Lainnya";
+            }
+
+            // Ganti username dinamis dari data atau thread context jika diperlukan
+            String currentUsername = com.rizki.view.ViewManager.getCurrentUsername();
+
+            String insertTxQuery = "INSERT INTO transactions (id, username, jumlah, tanggal, catatan, tipe, detail_source) VALUES (?, ?, ?, ?, ?, ?, ?)"
+                    + " ON DUPLICATE KEY UPDATE jumlah=?, tanggal=?, catatan=?, tipe=?, detail_source=?";
+            try (Connection conn = DatabaseHelper.getConnection();
+                 PreparedStatement stmt = conn.prepareStatement(insertTxQuery)) {
+                stmt.setString(1, tx.getIdTransaksi());
+                stmt.setString(2, currentUsername);
+                stmt.setDouble(3, tx.getJumlah());
+                stmt.setString(4, tx.getTanggal());
+                stmt.setString(5, tx.getCatatan());
+                stmt.setString(6, tipe);
+                stmt.setString(7, detailSource);
+                // For duplicate key
+                stmt.setDouble(8, tx.getJumlah());
+                stmt.setString(9, tx.getTanggal());
+                stmt.setString(10, tx.getCatatan());
+                stmt.setString(11, tipe);
+                stmt.setString(12, detailSource);
+                stmt.executeUpdate();
+                return true;
+            } catch (SQLException e) {
+                e.printStackTrace();
+                return false;
+            }
+        } else if (data instanceof Anggaran) {
+            Anggaran budget = (Anggaran) data;
+            String currentUsername = com.rizki.view.ViewManager.getCurrentUsername();
+            String kat = (budget.getKategori() != null) ? budget.getKategori().getNamaKategori() : "Lainnya";
+            String per = (budget.getPeriode() != null) ? budget.getPeriode().getRentangWaktu() : "Bulanan";
+
+            // Delete existing budget for this category to overwrite, or insert
+            String deleteQuery = "DELETE FROM budgets WHERE username=? AND kategori=?";
+            String insertQuery = "INSERT INTO budgets (username, kategori, batas_maksimal, periode, total_terpakai) VALUES (?, ?, ?, ?, ?)";
+            
+            try (Connection conn = DatabaseHelper.getConnection()) {
+                try (PreparedStatement delStmt = conn.prepareStatement(deleteQuery)) {
+                    delStmt.setString(1, currentUsername);
+                    delStmt.setString(2, kat);
+                    delStmt.executeUpdate();
+                }
+                try (PreparedStatement insStmt = conn.prepareStatement(insertQuery)) {
+                    insStmt.setString(1, currentUsername);
+                    insStmt.setString(2, kat);
+                    insStmt.setDouble(3, budget.getBatasMaksimal());
+                    insStmt.setString(4, per);
+                    insStmt.setDouble(5, budget.getTotalTerpakai());
+                    insStmt.executeUpdate();
+                }
+                return true;
+            } catch (SQLException e) {
+                e.printStackTrace();
+                return false;
+            }
+        }
+
+        return false;
     }
 
     @Override
     public Object loadFromStorage() {
-        if (filePath == null || filePath.isEmpty()) {
-            return null;
-        }
-        // TODO: Implementasikan pembacaan data dari file
+        // Method default interface, tidak digunakan secara langsung
         return null;
+    }
+
+    public User loadUser(String username) {
+        String userQuery = "SELECT nama, nim, email, password, saldo_awal FROM users WHERE username = ?";
+        try (Connection conn = DatabaseHelper.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(userQuery)) {
+            
+            stmt.setString(1, username);
+            try (ResultSet rs = stmt.executeQuery()) {
+                if (rs.next()) {
+                    String nama = rs.getString("nama");
+                    String nim = rs.getString("nim");
+                    String email = rs.getString("email");
+                    String password = rs.getString("password");
+                    double saldoAwal = rs.getDouble("saldo_awal");
+                    
+                    // Rekonstruksi Profile dan Dompet menggunakan constructor
+                    Profile profile = new Profile(nama, password, nim, email);
+                    Dompet dompet = new Dompet(saldoAwal);
+                    
+                    // Load Transaksi untuk user ini
+                    List<Transaksi> txList = new ArrayList<>();
+                    String txQuery = "SELECT id, jumlah, tanggal, catatan, tipe, detail_source FROM transactions WHERE username = ?";
+                    try (PreparedStatement txStmt = conn.prepareStatement(txQuery)) {
+                        txStmt.setString(1, username);
+                        try (ResultSet txRs = txStmt.executeQuery()) {
+                            while (txRs.next()) {
+                                String id = txRs.getString("id");
+                                double jumlah = txRs.getDouble("jumlah");
+                                String tanggal = txRs.getString("tanggal");
+                                String catatan = txRs.getString("catatan");
+                                String tipe = txRs.getString("tipe");
+                                String detailSource = txRs.getString("detail_source");
+                                
+                                if ("Pemasukan".equalsIgnoreCase(tipe)) {
+                                    Pemasukan p = new Pemasukan(id, jumlah, tanggal, catatan, detailSource);
+                                    dompet.tambahTransaksi(p);
+                                } else {
+                                    Kategori katObj = new Kategori(detailSource);
+                                    Pengeluaran p = new Pengeluaran(id, jumlah, tanggal, catatan, katObj);
+                                    dompet.tambahTransaksi(p);
+                                }
+                            }
+                        }
+                    }
+                    
+                    // Rekonstruksi User menggunakan constructor (Komposisi & Agregasi)
+                    User user = new User(username, password, profile, dompet);
+                    return user;
+                }
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return null;
+    }
+
+    public List<Anggaran> loadBudgets(String username, Pengeluaran[] listPengeluaran) {
+        List<Anggaran> list = new ArrayList<>();
+        String query = "SELECT kategori, batas_maksimal, periode FROM budgets WHERE username = ?";
+        try (Connection conn = DatabaseHelper.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(query)) {
+            
+            stmt.setString(1, username);
+            try (ResultSet rs = stmt.executeQuery()) {
+                while (rs.next()) {
+                    String kat = rs.getString("kategori");
+                    double limit = rs.getDouble("batas_maksimal");
+                    String per = rs.getString("periode");
+                    
+                    Kategori kategoriObj = new Kategori(kat);
+                    PeriodeAnggaran periodeObj = new PeriodeAnggaran(per);
+                    
+                    Anggaran anggaran = new Anggaran(limit, kategoriObj, periodeObj);
+                    anggaran.hitungSisaLimit(listPengeluaran);
+                    list.add(anggaran);
+                }
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return list;
     }
 }

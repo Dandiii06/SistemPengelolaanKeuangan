@@ -1,27 +1,31 @@
 package com.rizki.model.keuangan;
 
 import com.rizki.model.Pengguna.Dompet;
+import com.rizki.model.Anggaran.Kategori;
 
 public class Pengeluaran extends Transaksi{
-    private String kategori;
+    private Kategori kategori;
     private double totalPengeluaran;
 
-    public Pengeluaran(String idTransaksi, double jumlahSpend,  String tanggal, String catatan, String kategori, double pengeluaran) {
-        super(idTransaksi, jumlahSpend, tanggal, catatan);
+    public Pengeluaran(String idTransaksi, double jumlah, String tanggal, String catatan, Kategori kategori) {
+        super(idTransaksi, jumlah, tanggal, catatan);
         this.kategori = kategori;
-        this.totalPengeluaran += jumlahSpend;
-        
+        this.totalPengeluaran = jumlah;
     }
 
     public void kurangiSaldoDompet(Dompet d) {
         if (d != null) {
-            d.updateSaldoPengeluaran(getJumlahSpend());
+            d.updateSaldoPengeluaran(getJumlah());
         }
     }
 
     @Override
     public String getDetail(){
-        return "Pengeluaran untuk " + kategori + ": " + getJumlahSpend() + " pada " + getTanggal() + ". Catatan: " + getCatatan();
+        return "Pengeluaran untuk " + (kategori != null ? kategori.getNamaKategori() : "Lainnya") + ": " + getJumlah() + " pada " + getTanggal() + ". Catatan: " + getCatatan();
+    }
+
+    public Kategori getKategori() {
+        return kategori;
     }
 
     public double getTotalPengeluaran() {

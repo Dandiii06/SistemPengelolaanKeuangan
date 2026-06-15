@@ -3,6 +3,7 @@ package com.rizki.view;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Parent;
+import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.DatePicker;
@@ -23,9 +24,35 @@ import javafx.scene.shape.Circle;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 
+import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+import com.rizki.model.Pengguna.User;
+import com.rizki.model.Pengguna.Dompet;
+import com.rizki.model.Pengguna.Profile;
+import com.rizki.model.keuangan.Transaksi;
+import com.rizki.model.keuangan.Pemasukan;
+import com.rizki.model.keuangan.Pengeluaran;
+import com.rizki.model.Anggaran.Anggaran;
+import com.rizki.model.Anggaran.Kategori;
+import com.rizki.model.Anggaran.PeriodeAnggaran;
+import com.rizki.model.Manajemen.DatabaseManager;
+import com.rizki.model.Manajemen.Validator;
+import com.rizki.model.Manajemen.Notifikasi;
+
 public class HomeView {
     private BorderPane root;
     private String username;
+    
+    // Model and Database state
+    private User userModel;
+    private DatabaseManager dbManager;
+    private List<Anggaran> listAnggaran;
     
     // Sidebar buttons
     private Button btnRingkasan;
@@ -45,9 +72,42 @@ public class HomeView {
     private VBox paneLaporan;
     private VBox paneProfil;
 
+    // Ringkasan elements
+    private Label lblGreeting;
+    private Label lblTotalSaldoValue;
+    private Label lblTotalPemasukanValue;
+    private Label lblTotalPengeluaranValue;
+    private VBox listRecentTransactions;
+    private VBox listBudgetProgressBars;
+
+    // Transaksi elements
+    private VBox listAllTransactions;
+
+    // Anggaran elements
+    private VBox listActiveBudgets;
+
+    // Laporan elements
+    private Label lblDailyAverage;
+    private Label lblMaxCategory;
+    private Label lblSavingsRatio;
+    private VBox listLaporanDistribution;
+
+    // Profil elements
+    private Label lblAvatarName;
+    private Label lblNimText;
+    private Label lblLetter;
+
     public HomeView(String username) {
         this.username = username;
+        this.dbManager = new DatabaseManager("");
+        this.userModel = dbManager.loadUser(username);
+        if (this.userModel != null) {
+            this.listAnggaran = dbManager.loadBudgets(username, getPengeluarans(userModel.getDompet().getDaftarTransaksi()));
+        } else {
+            this.listAnggaran = new ArrayList<>();
+        }
         createView();
+        refreshAllData();
     }
 
     private void createView() {
@@ -169,11 +229,10 @@ public class HomeView {
         HBox header = new HBox();
         header.setAlignment(Pos.CENTER_LEFT);
         VBox titleWrapper = new VBox(5);
-        Label lblGreeting = new Label("Halo, " + username + "!");
+        lblGreeting = new Label("Halo, " + (userModel != null ? userModel.getProfil().getNama() : username) + "!");
         lblGreeting.setFont(Font.font("Segoe UI", FontWeight.BOLD, 26));
         lblGreeting.setTextFill(Color.WHITE);
         Label lblGreetingDesc = new Label("Berikut adalah ringkasan keuangan pribadi Anda hari ini.");
-        lblGreetingDesc.getStyleClass().add("label-subtitle");
         titleWrapper.getChildren().addAll(lblGreeting, lblGreetingDesc);
 
         Region spacer = new Region();
@@ -191,9 +250,14 @@ public class HomeView {
         HBox metricContainer = new HBox(20);
         metricContainer.setAlignment(Pos.CENTER);
 
-        VBox cardSaldo = createMetricCard("TOTAL SALDO UTAMA", "Rp 12.500.000", "metric-card-primary", "Status: Aman & Terkendali");
-        VBox cardPemasukan = createMetricCard("TOTAL PEMASUKAN", "Rp 15.000.000", "metric-card-success", "+ Rp 3.000.000 bulan ini");
-        VBox cardPengeluaran = createMetricCard("TOTAL PENGELUARAN", "Rp 2.500.000", "metric-card-danger", "- Rp 250.000 minggu ini");
+        VBox cardSaldo = createMetricCard("TOTAL SALDO UTAMA", "Rp 0", "metric-card-primary", "Status: Aman & Terkendali");
+        lblTotalSaldoValue = (Label) cardSaldo.getChildren().get(1);
+
+        VBox cardPemasukan = createMetricCard("TOTAL PEMASUKAN", "Rp 0", "metric-card-success", "Total Pemasukan Masuk");
+        lblTotalPemasukanValue = (Label) cardPemasukan.getChildren().get(1);
+
+        VBox cardPengeluaran = createMetricCard("TOTAL PENGELUARAN", "Rp 0", "metric-card-danger", "Total Pengeluaran Keluar");
+        lblTotalPengeluaranValue = (Label) cardPengeluaran.getChildren().get(1);
 
         HBox.setHgrow(cardSaldo, Priority.ALWAYS);
         HBox.setHgrow(cardPemasukan, Priority.ALWAYS);
@@ -214,15 +278,8 @@ public class HomeView {
         lblRecentTitle.setFont(Font.font("Segoe UI", FontWeight.BOLD, 18));
         lblRecentTitle.setTextFill(Color.WHITE);
 
-        VBox listTransactions = new VBox(10);
-        listTransactions.getChildren().addAll(
-            createTransactionRow("Gaji Bulanan", "Pemasukan", "12 Jun 2026", "Rp 15.000.000", true),
-            createTransactionRow("Belanja Bulanan Supermarket", "Konsumsi", "13 Jun 2026", "- Rp 1.500.000", false),
-            createTransactionRow("Buku Kuliah DPBO", "Pendidikan", "14 Jun 2026", "- Rp 400.000", false),
-            createTransactionRow("Uang Jajan Tambahan", "Pemasukan", "14 Jun 2026", "Rp 500.000", true),
-            createTransactionRow("Makan Malam & Kopi", "Konsumsi", "14 Jun 2026", "- Rp 100.000", false)
-        );
-        recentBox.getChildren().addAll(lblRecentTitle, listTransactions);
+        listRecentTransactions = new VBox(10);
+        recentBox.getChildren().addAll(lblRecentTitle, listRecentTransactions);
 
         // Right section: Budgets Status
         VBox budgetBox = new VBox(15);
@@ -233,13 +290,8 @@ public class HomeView {
         lblBudgetTitle.setFont(Font.font("Segoe UI", FontWeight.BOLD, 18));
         lblBudgetTitle.setTextFill(Color.WHITE);
 
-        VBox budgetList = new VBox(15);
-        budgetList.getChildren().addAll(
-            createBudgetProgressBar("Konsumsi Makanan", 0.65, "Rp 1.600.000 / Rp 2.500.000"),
-            createBudgetProgressBar("Kebutuhan Kuliah", 0.40, "Rp 400.000 / Rp 1.000.000"),
-            createBudgetProgressBar("Transportasi", 0.85, "Rp 425.000 / Rp 500.000")
-        );
-        budgetBox.getChildren().addAll(lblBudgetTitle, budgetList);
+        listBudgetProgressBars = new VBox(15);
+        budgetBox.getChildren().addAll(lblBudgetTitle, listBudgetProgressBars);
 
         bottomContainer.getChildren().addAll(recentBox, budgetBox);
         paneRingkasan.getChildren().addAll(header, metricContainer, bottomContainer);
@@ -371,6 +423,81 @@ public class HomeView {
         btnSave.getStyleClass().add("button-primary");
         btnSave.setMaxWidth(Double.MAX_VALUE);
 
+        btnSave.setOnAction(e -> {
+            try {
+                String nominalStr = txtNominal.getText().trim();
+                if (nominalStr.isEmpty()) return;
+                
+                double nominal = Double.parseDouble(nominalStr);
+                String kategoriStr = cmbKategori.getValue();
+                String jenis = cmbJenis.getValue();
+                String catatan = txtCatatan.getText().trim();
+                LocalDate tgl = dpTanggal.getValue();
+                String tanggalStr = (tgl != null) ? tgl.toString() : LocalDate.now().toString();
+                String id = "TX-" + System.currentTimeMillis();
+
+                Validator validator = new Validator();
+                if (!validator.cekInputSaldo(nominal) || kategoriStr == null || kategoriStr.equals("Pilih Kategori...")) {
+                    Alert alert = new Alert(Alert.AlertType.ERROR);
+                    alert.setTitle("Kesalahan Input");
+                    alert.setHeaderText(null);
+                    alert.setContentText("Input nominal harus lebih dari 0 dan kategori harus dipilih!");
+                    alert.showAndWait();
+                    return;
+                }
+
+                Transaksi tx;
+                if ("Pemasukan".equals(jenis)) {
+                    tx = new Pemasukan(id, nominal, tanggalStr, catatan, kategoriStr);
+                    ((Pemasukan) tx).tambahSaldoDompet(userModel.getDompet());
+                } else {
+                    tx = new Pengeluaran(id, nominal, tanggalStr, catatan, new Kategori(kategoriStr));
+                    ((Pengeluaran) tx).kurangiSaldoDompet(userModel.getDompet());
+                }
+
+                // Simpan transaksi di model & DB
+                userModel.getDompet().tambahTransaksi(tx);
+                dbManager.saveToStorage(tx);
+                dbManager.saveToStorage(userModel);
+
+                // Cek Notifikasi
+                Notifikasi notif = new Notifikasi();
+                notif.cekSaldoKritis(userModel.getDompet());
+                if (tx instanceof Pengeluaran) {
+                    Pengeluaran[] pengeluarans = getPengeluarans(userModel.getDompet().getDaftarTransaksi());
+                    for (Anggaran ang : listAnggaran) {
+                        if (ang.getKategori().getNamaKategori().equalsIgnoreCase(kategoriStr)) {
+                            ang.hitungSisaLimit(pengeluarans);
+                            notif.cekAmbangBatas(ang);
+                        }
+                    }
+                }
+
+                if (!notif.getPesanPeringatan().isEmpty()) {
+                    Alert alert = new Alert(Alert.AlertType.WARNING);
+                    alert.setTitle("Peringatan Keuangan");
+                    alert.setHeaderText(null);
+                    alert.setContentText(notif.getPesanPeringatan());
+                    alert.showAndWait();
+                }
+
+                // Bersihkan form
+                txtNominal.clear();
+                txtCatatan.clear();
+                dpTanggal.setValue(null);
+
+                // Refresh seluruh tampilan
+                refreshAllData();
+
+            } catch (NumberFormatException ex) {
+                Alert alert = new Alert(Alert.AlertType.ERROR);
+                alert.setTitle("Kesalahan Input");
+                alert.setHeaderText(null);
+                alert.setContentText("Nominal harus berupa angka!");
+                alert.showAndWait();
+            }
+        });
+
         formCard.getChildren().addAll(
             lblFormTitle,
             new Label("Jenis Transaksi") {{ getStyleClass().add("form-label"); }}, cmbJenis,
@@ -390,16 +517,9 @@ public class HomeView {
         lblTableTitle.setFont(Font.font("Segoe UI", FontWeight.BOLD, 16));
         lblTableTitle.setTextFill(Color.WHITE);
 
-        VBox listMock = new VBox(8);
-        listMock.getChildren().addAll(
-            createTransactionRow("Gaji Bulanan", "Pemasukan", "12 Jun 2026", "Rp 15.000.000", true),
-            createTransactionRow("Belanja Bulanan Supermarket", "Konsumsi", "13 Jun 2026", "- Rp 1.500.000", false),
-            createTransactionRow("Buku Kuliah DPBO", "Pendidikan", "14 Jun 2026", "- Rp 400.000", false),
-            createTransactionRow("Uang Jajan Tambahan", "Pemasukan", "14 Jun 2026", "Rp 500.000", true),
-            createTransactionRow("Makan Malam & Kopi", "Konsumsi", "14 Jun 2026", "- Rp 100.000", false)
-        );
+        listAllTransactions = new VBox(8);
 
-        tableCard.getChildren().addAll(lblTableTitle, listMock);
+        tableCard.getChildren().addAll(lblTableTitle, listAllTransactions);
         mainLayout.getChildren().addAll(formCard, tableCard);
         paneTransaksi.getChildren().addAll(lblTitle, mainLayout);
     }
@@ -444,6 +564,50 @@ public class HomeView {
         btnSaveBudget.getStyleClass().add("button-primary");
         btnSaveBudget.setMaxWidth(Double.MAX_VALUE);
 
+        btnSaveBudget.setOnAction(e -> {
+            try {
+                String limitStr = txtLimit.getText().trim();
+                if (limitStr.isEmpty()) return;
+                
+                double limit = Double.parseDouble(limitStr);
+                String katStr = cmbKategori.getValue();
+                String perStr = cmbPeriode.getValue();
+
+                Validator validator = new Validator();
+                if (!validator.cekInputSaldo(limit)) {
+                    Alert alert = new Alert(Alert.AlertType.ERROR);
+                    alert.setTitle("Kesalahan Input");
+                    alert.setHeaderText(null);
+                    alert.setContentText("Batas anggaran harus lebih dari 0!");
+                    alert.showAndWait();
+                    return;
+                }
+
+                Kategori kategoriObj = new Kategori(katStr);
+                PeriodeAnggaran periodeObj = new PeriodeAnggaran(perStr);
+                Anggaran budget = new Anggaran(limit, kategoriObj, periodeObj);
+
+                // Simpan ke DB
+                dbManager.saveToStorage(budget);
+
+                // Reload budgets list
+                listAnggaran = dbManager.loadBudgets(username, getPengeluarans(userModel.getDompet().getDaftarTransaksi()));
+
+                // Bersihkan form
+                txtLimit.clear();
+
+                // Refresh data
+                refreshAllData();
+
+            } catch (NumberFormatException ex) {
+                Alert alert = new Alert(Alert.AlertType.ERROR);
+                alert.setTitle("Kesalahan Input");
+                alert.setHeaderText(null);
+                alert.setContentText("Batas anggaran harus berupa angka!");
+                alert.showAndWait();
+            }
+        });
+
         formCard.getChildren().addAll(
             lblFormTitle,
             new Label("Kategori Pengeluaran") {{ getStyleClass().add("form-label"); }}, cmbKategori,
@@ -461,15 +625,9 @@ public class HomeView {
         lblActiveTitle.setFont(Font.font("Segoe UI", FontWeight.BOLD, 16));
         lblActiveTitle.setTextFill(Color.WHITE);
 
-        VBox activeList = new VBox(20);
-        activeList.getChildren().addAll(
-            createBudgetProgressBar("Konsumsi Makanan", 0.64, "Rp 1.600.000 Terpakai dari Batas Rp 2.500.000 (Bulanan)"),
-            createBudgetProgressBar("Kebutuhan Kuliah", 0.40, "Rp 400.000 Terpakai dari Batas Rp 1.000.000 (Bulanan)"),
-            createBudgetProgressBar("Transportasi", 0.85, "Rp 425.000 Terpakai dari Batas Rp 500.000 (Mingguan)"),
-            createBudgetProgressBar("Hiburan & Kopi", 0.10, "Rp 50.000 Terpakai dari Batas Rp 500.000 (Mingguan)")
-        );
+        listActiveBudgets = new VBox(20);
 
-        budgetCard.getChildren().addAll(lblActiveTitle, activeList);
+        budgetCard.getChildren().addAll(lblActiveTitle, listActiveBudgets);
         mainLayout.getChildren().addAll(formCard, budgetCard);
         paneAnggaran.getChildren().addAll(lblTitle, mainLayout);
     }
@@ -487,9 +645,14 @@ public class HomeView {
 
         HBox statsGrid = new HBox(20);
         
-        VBox stat1 = createStatCard("Rata-rata Pengeluaran Harian", "Rp 83.333");
-        VBox stat2 = createStatCard("Kategori Pengeluaran Terbesar", "Konsumsi Makanan");
-        VBox stat3 = createStatCard("Rasio Tabungan Bulan Ini", "83.33 %");
+        VBox stat1 = createStatCard("Rata-rata Pengeluaran Harian", "Rp 0");
+        lblDailyAverage = (Label) stat1.getChildren().get(1);
+
+        VBox stat2 = createStatCard("Kategori Pengeluaran Terbesar", "-");
+        lblMaxCategory = (Label) stat2.getChildren().get(1);
+
+        VBox stat3 = createStatCard("Rasio Tabungan Bulan Ini", "0.00 %");
+        lblSavingsRatio = (Label) stat3.getChildren().get(1);
 
         HBox.setHgrow(stat1, Priority.ALWAYS);
         HBox.setHgrow(stat2, Priority.ALWAYS);
@@ -504,15 +667,9 @@ public class HomeView {
         lblBreakdownTitle.setFont(Font.font("Segoe UI", FontWeight.BOLD, 16));
         lblBreakdownTitle.setTextFill(Color.WHITE);
 
-        VBox listDistribusi = new VBox(15);
-        listDistribusi.getChildren().addAll(
-            createDistributionRow("🍔  Konsumsi Makanan", "Rp 1.600.000", "64.0 %", 0.64, Color.web("#f43f5e")),
-            createDistributionRow("📚  Kebutuhan Kuliah / Pendidikan", "Rp 400.000", "16.0 %", 0.16, Color.web("#3b82f6")),
-            createDistributionRow("🚗  Transportasi", "Rp 425.000", "17.0 %", 0.17, Color.web("#eab308")),
-            createDistributionRow("☕  Lainnya / Hiburan", "Rp 75.000", "3.0 %", 0.03, Color.web("#10b981"))
-        );
+        listLaporanDistribution = new VBox(15);
 
-        chartCard.getChildren().addAll(lblBreakdownTitle, listDistribusi);
+        chartCard.getChildren().addAll(lblBreakdownTitle, listLaporanDistribution);
         paneLaporan.getChildren().addAll(lblTitle, statsGrid, chartCard);
     }
 
@@ -586,31 +743,79 @@ public class HomeView {
         
         Circle avatarCircle = new Circle(40);
         avatarCircle.setFill(Color.web("#6366f1"));
-        Label lblLetter = new Label(username.substring(0, 1).toUpperCase());
+        
+        String initial = (userModel != null && !userModel.getProfil().getNama().isEmpty()) 
+            ? userModel.getProfil().getNama().substring(0, 1).toUpperCase() 
+            : username.substring(0, 1).toUpperCase();
+            
+        lblLetter = new Label(initial);
         lblLetter.setTextFill(Color.WHITE);
         lblLetter.setFont(Font.font("Segoe UI", FontWeight.BOLD, 32));
         StackPane avatarPane = new StackPane(avatarCircle, lblLetter);
 
         VBox userDetailBox = new VBox(5);
-        Label lblName = new Label("Rizki Ramadhan"); // Default Mock
-        lblName.setFont(Font.font("Segoe UI", FontWeight.BOLD, 20));
-        lblName.setTextFill(Color.WHITE);
-        Label lblNimText = new Label("NIM: 22012345"); // Default Mock
+        lblAvatarName = new Label(userModel != null ? userModel.getProfil().getNama() : "Nama Pengguna");
+        lblAvatarName.setFont(Font.font("Segoe UI", FontWeight.BOLD, 20));
+        lblAvatarName.setTextFill(Color.WHITE);
+        lblNimText = new Label("NIM: " + (userModel != null ? userModel.getProfil().getNim() : "-"));
         lblNimText.setStyle("-fx-text-fill: #94a3b8; -fx-font-size: 14px;");
-        userDetailBox.getChildren().addAll(lblName, lblNimText);
+        userDetailBox.getChildren().addAll(lblAvatarName, lblNimText);
 
         avatarBox.getChildren().addAll(avatarPane, userDetailBox);
 
         // Details fields
-        TextField txtNama = new TextField("Rizki Ramadhan");
-        TextField txtNim = new TextField("22012345");
-        TextField txtEmail = new TextField("rizki@student.upi.edu");
+        TextField txtNama = new TextField(userModel != null ? userModel.getProfil().getNama() : "");
+        TextField txtNim = new TextField(userModel != null ? userModel.getProfil().getNim() : "");
+        txtNim.setEditable(false);
+        TextField txtEmail = new TextField(userModel != null ? userModel.getProfil().getEmail() : "");
         PasswordField txtPass = new PasswordField();
         txtPass.setPromptText("Masukkan password baru jika ingin diubah");
 
         Button btnUpdate = new Button("Simpan Perubahan");
         btnUpdate.getStyleClass().add("button-primary");
         btnUpdate.setMaxWidth(Double.MAX_VALUE);
+
+        btnUpdate.setOnAction(e -> {
+            String nama = txtNama.getText().trim();
+            String email = txtEmail.getText().trim();
+            String pass = txtPass.getText().trim();
+
+            if (nama.isEmpty() || email.isEmpty()) {
+                Alert alert = new Alert(Alert.AlertType.ERROR);
+                alert.setTitle("Error");
+                alert.setHeaderText(null);
+                alert.setContentText("Nama dan email tidak boleh kosong!");
+                alert.showAndWait();
+                return;
+            }
+
+            if (userModel != null) {
+                userModel.getProfil().updateProfile(nama, email);
+                if (!pass.isEmpty()) {
+                    String hashed = org.mindrot.jbcrypt.BCrypt.hashpw(pass, org.mindrot.jbcrypt.BCrypt.gensalt());
+                    userModel.setPassword(hashed);
+                    userModel.getProfil().setPassword(hashed);
+                }
+                
+                boolean saved = dbManager.saveToStorage(userModel);
+                if (saved) {
+                    Alert alert = new Alert(Alert.AlertType.INFORMATION);
+                    alert.setTitle("Sukses");
+                    alert.setHeaderText(null);
+                    alert.setContentText("Profil berhasil disimpan!");
+                    alert.showAndWait();
+                    
+                    txtPass.clear();
+                    refreshAllData();
+                } else {
+                    Alert alert = new Alert(Alert.AlertType.ERROR);
+                    alert.setTitle("Error");
+                    alert.setHeaderText(null);
+                    alert.setContentText("Gagal menyimpan profil ke database!");
+                    alert.showAndWait();
+                }
+            }
+        });
 
         formCard.getChildren().addAll(
             avatarBox,
@@ -627,5 +832,198 @@ public class HomeView {
 
     public Parent getView() {
         return root;
+    }
+
+    private void refreshAllData() {
+        if (userModel == null) return;
+        refreshRingkasanData();
+        refreshTransaksiData();
+        refreshAnggaranData();
+        refreshLaporanData();
+    }
+
+    private void refreshRingkasanData() {
+        if (userModel == null) return;
+        double saldo = userModel.getDompet().getSaldo();
+        double totalIn = 0;
+        double totalOut = 0;
+        Transaksi[] txs = userModel.getDompet().getDaftarTransaksi();
+        
+        for (Transaksi t : txs) {
+            if (t instanceof Pemasukan) {
+                totalIn += t.getJumlah();
+            } else if (t instanceof Pengeluaran) {
+                totalOut += t.getJumlah();
+            }
+        }
+        
+        if (lblGreeting != null) {
+            lblGreeting.setText("Halo, " + userModel.getProfil().getNama() + "!");
+        }
+        if (lblTotalSaldoValue != null) {
+            lblTotalSaldoValue.setText(formatRupiah(saldo));
+        }
+        if (lblTotalPemasukanValue != null) {
+            lblTotalPemasukanValue.setText(formatRupiah(totalIn));
+        }
+        if (lblTotalPengeluaranValue != null) {
+            lblTotalPengeluaranValue.setText(formatRupiah(totalOut));
+        }
+        
+        if (listRecentTransactions != null) {
+            listRecentTransactions.getChildren().clear();
+            int count = 0;
+            for (int i = txs.length - 1; i >= 0 && count < 5; i--, count++) {
+                Transaksi t = txs[i];
+                boolean isIn = t instanceof Pemasukan;
+                String label = t.getCatatan();
+                String cat = isIn ? "Pemasukan" : ((Pengeluaran) t).getKategori().getNamaKategori();
+                String amtStr = (isIn ? "Rp " : "- Rp ") + formatNumber(t.getJumlah());
+                listRecentTransactions.getChildren().add(createTransactionRow(label, cat, t.getTanggal(), amtStr, isIn));
+            }
+            if (txs.length == 0) {
+                listRecentTransactions.getChildren().add(new Label("Belum ada transaksi.") {{ setTextFill(Color.web("#94a3b8")); }});
+            }
+        }
+
+        if (listBudgetProgressBars != null) {
+            listBudgetProgressBars.getChildren().clear();
+            Pengeluaran[] pengeluarans = getPengeluarans(txs);
+            for (Anggaran ang : listAnggaran) {
+                ang.hitungSisaLimit(pengeluarans);
+                double progress = ang.getBatasMaksimal() > 0 ? (ang.getTotalTerpakai() / ang.getBatasMaksimal()) : 0;
+                String detail = formatRupiah(ang.getTotalTerpakai()) + " / " + formatRupiah(ang.getBatasMaksimal());
+                listBudgetProgressBars.getChildren().add(createBudgetProgressBar(ang.getKategori().getNamaKategori(), progress, detail));
+            }
+            if (listAnggaran.isEmpty()) {
+                listBudgetProgressBars.getChildren().add(new Label("Belum ada batas anggaran.") {{ setTextFill(Color.web("#94a3b8")); }});
+            }
+        }
+    }
+
+    private void refreshTransaksiData() {
+        if (userModel == null) return;
+        if (listAllTransactions != null) {
+            listAllTransactions.getChildren().clear();
+            Transaksi[] txs = userModel.getDompet().getDaftarTransaksi();
+            for (int i = txs.length - 1; i >= 0; i--) {
+                Transaksi t = txs[i];
+                boolean isIn = t instanceof Pemasukan;
+                String label = t.getCatatan();
+                String cat = isIn ? "Pemasukan" : ((Pengeluaran) t).getKategori().getNamaKategori();
+                String amtStr = (isIn ? "Rp " : "- Rp ") + formatNumber(t.getJumlah());
+                listAllTransactions.getChildren().add(createTransactionRow(label, cat, t.getTanggal(), amtStr, isIn));
+            }
+            if (txs.length == 0) {
+                listAllTransactions.getChildren().add(new Label("Belum ada transaksi.") {{ setTextFill(Color.web("#94a3b8")); }});
+            }
+        }
+    }
+
+    private void refreshAnggaranData() {
+        if (userModel == null) return;
+        if (listActiveBudgets != null) {
+            listActiveBudgets.getChildren().clear();
+            Pengeluaran[] pengeluarans = getPengeluarans(userModel.getDompet().getDaftarTransaksi());
+            for (Anggaran ang : listAnggaran) {
+                ang.hitungSisaLimit(pengeluarans);
+                double progress = ang.getBatasMaksimal() > 0 ? (ang.getTotalTerpakai() / ang.getBatasMaksimal()) : 0;
+                String detail = formatRupiah(ang.getTotalTerpakai()) + " Terpakai dari Batas " + formatRupiah(ang.getBatasMaksimal()) + " (" + ang.getPeriode().getRentangWaktu() + ")";
+                listActiveBudgets.getChildren().add(createBudgetProgressBar(ang.getKategori().getNamaKategori(), progress, detail));
+            }
+            if (listAnggaran.isEmpty()) {
+                listActiveBudgets.getChildren().add(new Label("Belum ada anggaran aktif.") {{ setTextFill(Color.web("#94a3b8")); }});
+            }
+        }
+    }
+
+    private void refreshLaporanData() {
+        if (userModel == null) return;
+        double totalIn = 0;
+        double totalOut = 0;
+        Transaksi[] txs = userModel.getDompet().getDaftarTransaksi();
+        
+        Map<String, Double> catMap = new HashMap<>();
+        Set<String> uniqueDays = new HashSet<>();
+        
+        for (Transaksi t : txs) {
+            if (t instanceof Pemasukan) {
+                totalIn += t.getJumlah();
+            } else if (t instanceof Pengeluaran) {
+                double amt = t.getJumlah();
+                totalOut += amt;
+                Kategori cat = ((Pengeluaran) t).getKategori();
+                String catName = cat != null ? cat.getNamaKategori() : "Lainnya";
+                catMap.put(catName, catMap.getOrDefault(catName, 0.0) + amt);
+                uniqueDays.add(t.getTanggal());
+            }
+        }
+        
+        double dailyAvg = uniqueDays.size() > 0 ? (totalOut / uniqueDays.size()) : 0;
+        if (lblDailyAverage != null) {
+            lblDailyAverage.setText(formatRupiah(dailyAvg));
+        }
+        
+        String maxCat = "-";
+        double maxAmt = 0;
+        for (Map.Entry<String, Double> entry : catMap.entrySet()) {
+            if (entry.getValue() > maxAmt) {
+                maxAmt = entry.getValue();
+                maxCat = entry.getKey();
+            }
+        }
+        if (lblMaxCategory != null) {
+            lblMaxCategory.setText(maxCat);
+        }
+        
+        double savingsRatio = totalIn > 0 ? ((totalIn - totalOut) / totalIn * 100) : 0;
+        if (lblSavingsRatio != null) {
+            lblSavingsRatio.setText(String.format("%.2f %%", savingsRatio));
+        }
+        
+        if (listLaporanDistribution != null) {
+            listLaporanDistribution.getChildren().clear();
+            for (Map.Entry<String, Double> entry : catMap.entrySet()) {
+                double catAmt = entry.getValue();
+                double ratio = totalOut > 0 ? (catAmt / totalOut) : 0;
+                String pctStr = String.format("%.1f %%", ratio * 100);
+                listLaporanDistribution.getChildren().add(
+                    createDistributionRow("📁  " + entry.getKey(), formatRupiah(catAmt), pctStr, ratio, Color.web("#f43f5e"))
+                );
+            }
+            if (catMap.isEmpty()) {
+                listLaporanDistribution.getChildren().add(new Label("Belum ada pengeluaran terdaftar.") {{ setTextFill(Color.web("#94a3b8")); }});
+            }
+        }
+
+        // Juga update avatar profil jika di halaman profil
+        if (lblAvatarName != null) {
+            lblAvatarName.setText(userModel.getProfil().getNama());
+        }
+        if (lblNimText != null) {
+            lblNimText.setText("NIM: " + userModel.getProfil().getNim());
+        }
+        if (lblLetter != null && !userModel.getProfil().getNama().isEmpty()) {
+            lblLetter.setText(userModel.getProfil().getNama().substring(0, 1).toUpperCase());
+        }
+    }
+
+    private Pengeluaran[] getPengeluarans(Transaksi[] all) {
+        if (all == null) return new Pengeluaran[0];
+        List<Pengeluaran> res = new ArrayList<>();
+        for (Transaksi t : all) {
+            if (t instanceof Pengeluaran) {
+                res.add((Pengeluaran) t);
+            }
+        }
+        return res.toArray(new Pengeluaran[0]);
+    }
+
+    private String formatRupiah(double value) {
+        return "Rp " + formatNumber(value);
+    }
+    
+    private String formatNumber(double value) {
+        return String.format("%,.0f", value).replace(",", ".");
     }
 }

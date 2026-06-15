@@ -6,15 +6,15 @@ public class Pemasukan extends Transaksi{
     private String sumber;
     private double totalPemasukan;
 
-    public Pemasukan(String idTransaksi, String tanggal, double jumlahSpend, String catatan, String sumber) {
-        super(idTransaksi, jumlahSpend, tanggal, catatan);
+    public Pemasukan(String idTransaksi, double jumlah, String tanggal, String catatan, String sumber) {
+        super(idTransaksi, jumlah, tanggal, catatan);
         this.sumber = sumber;
-        this.totalPemasukan += jumlahSpend;
+        this.totalPemasukan = jumlah;
     }
 
     public void tambahSaldoDompet(Dompet d) {
         if (d != null) {
-            d.updateSaldoPemasukan(getJumlahSpend());
+            d.updateSaldoPemasukan(getJumlah());
         }
     }
 
@@ -22,8 +22,12 @@ public class Pemasukan extends Transaksi{
         return totalPemasukan;
     }
 
+    public String getSumber() {
+        return sumber;
+    }
+
     @Override
     public String getDetail(){
-        return "Pemasukan dari " + sumber + ": " + getJumlahSpend()  + " pada " + getTanggal() + ". Catatan: " + getCatatan();
+        return "Pemasukan dari " + sumber + ": " + getJumlah()  + " pada " + getTanggal() + ". Catatan: " + getCatatan();
     }
 }

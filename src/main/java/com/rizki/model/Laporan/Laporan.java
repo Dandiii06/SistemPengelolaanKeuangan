@@ -20,17 +20,22 @@ public abstract class Laporan {
         return totalNominal;
     }
 
-    public Transaksi filterDataByDate(Transaksi data, String start, String end) {
+    public Transaksi[] filterDataByDate(Transaksi[] data, String start, String end) {
         if (data == null) {
-            return null;
+            return new Transaksi[0];
         }
 
-        String tanggal = data.getTanggal();
-        if (tanggal.compareTo(start) >= 0 && tanggal.compareTo(end) <= 0) {
-            return data;
+        java.util.List<Transaksi> result = new java.util.ArrayList<>();
+        for (Transaksi t : data) {
+            if (t != null && t.getTanggal() != null) {
+                String tanggal = t.getTanggal();
+                if (tanggal.compareTo(start) >= 0 && tanggal.compareTo(end) <= 0) {
+                    result.add(t);
+                }
+            }
         }
 
-        return null;
+        return result.toArray(new Transaksi[0]);
     }
 
     public abstract void generateStatistik(Dompet d);

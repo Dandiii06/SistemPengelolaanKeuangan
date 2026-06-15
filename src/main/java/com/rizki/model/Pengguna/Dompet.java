@@ -30,4 +30,12 @@ public class Dompet {
     public Transaksi[] getDaftarTransaksi() {
         return daftarTransaksi;
     }
+
+    public void tambahTransaksi(Transaksi t) {
+        if (t == null) return;
+        Transaksi[] baru = new Transaksi[this.daftarTransaksi.length + 1];
+        System.arraycopy(this.daftarTransaksi, 0, baru, 0, this.daftarTransaksi.length);
+        baru[baru.length - 1] = t;
+        this.daftarTransaksi = baru;
+    }
 }

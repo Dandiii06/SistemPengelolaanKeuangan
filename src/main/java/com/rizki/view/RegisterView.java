@@ -150,9 +150,7 @@ public class RegisterView {
 
         HBox.setHgrow(leftPanel, Priority.ALWAYS);
         HBox.setHgrow(rightPanel, Priority.ALWAYS);
-        root.getChildren().addAll(leftPanel, rightPanel);
-
-        // --- CONTROLLER EVENTS (Temp Switch) ---
+        root.getChildren().addAll(leftPanel, rightPanel);        // --- CONTROLLER EVENTS ---
         btnRegister.setOnAction(e -> {
             String name = txtNama.getText().trim();
             String nim = txtNim.getText().trim();
@@ -169,42 +167,25 @@ public class RegisterView {
                 try {
                     double saldo = Double.parseDouble(saldoStr);
             
-                    // Jalankan query INSERT untuk menyimpan data pengguna baru
-                    String query = "INSERT INTO users (nama, nim, email, username, password, saldo_awal) VALUES (?, ?, ?, ?, ?, ?)";
+                    // Hash password dengan BCrypt
+                    String hashedPassword = org.mindrot.jbcrypt.BCrypt.hashpw(password, org.mindrot.jbcrypt.BCrypt.gensalt());
             
-                    try (Connection conn = DatabaseHelper.getConnection();
-                        PreparedStatement stmt = conn.prepareStatement(query)) {
-                
-                        stmt.setString(1, name);
-                        stmt.setString(2, nim);
-                        stmt.setString(3, email);
-                        stmt.setString(4, username);
-                        stmt.setString(5, password);
-                        stmt.setDouble(6, saldo);
-                
-                        stmt.executeUpdate(); // Menyimpan ke database
-                
+                    // Inisialisasi data menggunakan constructor (decoupling dari query SQL langsung)
+                    com.rizki.model.Pengguna.Dompet dompet = new com.rizki.model.Pengguna.Dompet(saldo);
+                    com.rizki.model.Pengguna.Profile profile = new com.rizki.model.Pengguna.Profile(name, hashedPassword, nim, email);
+                    com.rizki.model.Pengguna.User user = new com.rizki.model.Pengguna.User(username, hashedPassword, profile, dompet);
+            
+                    // Persistensi data melalui DatabaseManager
+                    com.rizki.model.Manajemen.DatabaseManager dbManager = new com.rizki.model.Manajemen.DatabaseManager("");
+                    boolean isSaved = dbManager.saveToStorage(user);
+            
+                    if (isSaved) {
                         lblError.setVisible(false);
-                        String namaAsli = username;
-
-                        ViewManager.showHomeView(namaAsli);
-
-                        // lblSuccess.setText("Registrasi berhasil! Silakan masuk.");
-                        // lblSuccess.setVisible(true);
-                
-                        //bersihkan input form setelah berhasil daftar
-                        // txtNama.clear();
-                        // txtNim.clear();
-                        // txtEmail.clear();
-                        // txtUsername.clear();
-                        // txtPassword.clear();
-                        // txtSaldoAwal.clear();
-                
-                    } catch (SQLException ex) {
+                        ViewManager.showHomeView(username);
+                    } else {
                         lblError.setText("Pendaftaran gagal! Username/NIM/Email mungkin sudah terdaftar.");
                         lblError.setVisible(true);
                         lblSuccess.setVisible(false);
-                        ex.printStackTrace();
                     }
             
                 } catch (NumberFormatException ex) {

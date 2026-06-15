@@ -124,38 +124,26 @@ public class LoginView {
         HBox.setHgrow(rightPanel, Priority.ALWAYS);
         root.getChildren().addAll(leftPanel, rightPanel);
 
-        // --- CONTROLLER EVENTS (Temp Switch) ---
+        // --- CONTROLLER EVENTS ---
         btnLogin.setOnAction(e -> {
             String username = txtUsername.getText().trim();
             String password = txtPassword.getText().trim();
-            if (username.isEmpty() || password.isEmpty()) {
+            
+            com.rizki.model.Manajemen.Validator validator = new com.rizki.model.Manajemen.Validator();
+            if (!validator.cekValidasiLogin(username, password)) {
                 lblError.setText("Username dan Password tidak boleh kosong!");
                 lblError.setVisible(true);
             } else {
-                String query = "SELECT nama FROM users WHERE username = ? AND password = ?";
-                try (Connection conn = DatabaseHelper.getConnection();
-                    PreparedStatement stmt = conn.prepareStatement(query)) {
-            
-                    stmt.setString(1, username);
-                    stmt.setString(2, password);
-            
-                    ResultSet rs = stmt.executeQuery();
-                    if (rs.next()) {
-                        // Jika data ditemukan, ambil kolom 'nama' asli dari database
-                        // String namaAsli = rs.getString("nama");
-                        lblError.setVisible(false);
-                        String namaAsli = username;
-                        // Pindah ke dashboard dengan nama asli
-                        ViewManager.showHomeView(namaAsli);
-                    } else {
-                        // Jika data tidak ditemukan
-                        lblError.setText("Username atau Password salah!");
-                        lblError.setVisible(true);
-                    }
-                } catch (SQLException ex) {
-                    lblError.setText("Terjadi kesalahan database: " + ex.getMessage());
+                com.rizki.model.Manajemen.DatabaseManager dbManager = new com.rizki.model.Manajemen.DatabaseManager("");
+                com.rizki.model.Pengguna.User user = dbManager.loadUser(username);
+                
+                if (user != null && user.autentikasi(username, password)) {
+                    lblError.setVisible(false);
+                    // Pindah ke dashboard
+                    ViewManager.showHomeView(username);
+                } else {
+                    lblError.setText("Username atau Password salah!");
                     lblError.setVisible(true);
-                    ex.printStackTrace();
                 }
             }
         });
