@@ -1,5 +1,6 @@
 package com.rizki.view;
 
+import com.rizki.model.Manajemen.DatabaseManager;
 import com.rizki.model.Pengguna.Dompet;
 import com.rizki.model.Pengguna.Profile;
 import com.rizki.model.Pengguna.User;
@@ -192,7 +193,7 @@ public class RegisterView {
                     User user = new User(username, hashedPassword, profile, dompet);
             
                     // 5. Menyimpan data akun pengguna baru ke MySQL melalui DatabaseManager
-                    com.rizki.model.Manajemen.DatabaseManager dbManager = new com.rizki.model.Manajemen.DatabaseManager("");
+                    DatabaseManager dbManager = new DatabaseManager("");
                     boolean isSaved = dbManager.saveToStorage(user);
             
                     if (isSaved) {
@@ -200,12 +201,14 @@ public class RegisterView {
                         // Jika registrasi berhasil, navigasikan langsung ke halaman dashboard (HomeView)
                         ViewManager.showHomeView(username);
                     } else {
+                        // Jika registrasi gagal (misal karena username/NIM/email sudah terdaftar), tampilkan pesan error
                         lblError.setText("Pendaftaran gagal! Username/NIM/Email mungkin sudah terdaftar.");
                         lblError.setVisible(true);
                         lblSuccess.setVisible(false);
                     }
             
                 } catch (NumberFormatException ex) {
+                    // Jika input saldo awal tidak valid (bukan angka), tampilkan pesan error yang sesuai
                     lblError.setText("Saldo awal harus berupa angka!");
                     lblError.setVisible(true);
                     lblSuccess.setVisible(false);

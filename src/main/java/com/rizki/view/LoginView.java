@@ -1,11 +1,8 @@
 package com.rizki.view;
 
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-
-import com.rizki.model.Database.DatabaseHelper;
+import com.rizki.model.Manajemen.DatabaseManager;
+import com.rizki.model.Manajemen.Validator;
+import com.rizki.model.Pengguna.User;
 
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -142,15 +139,15 @@ public class LoginView {
             String username = txtUsername.getText().trim();
             String password = txtPassword.getText().trim();
             
-            com.rizki.model.Manajemen.Validator validator = new com.rizki.model.Manajemen.Validator();
+            Validator validator = new Validator();
             // 1. Validasi input apakah ada field kosong
             if (!validator.cekValidasiLogin(username, password)) {
                 lblError.setText("Username dan Password tidak boleh kosong!");
                 lblError.setVisible(true);
             } else {
-                com.rizki.model.Manajemen.DatabaseManager dbManager = new com.rizki.model.Manajemen.DatabaseManager("");
+                DatabaseManager dbManager = new DatabaseManager("");
                 // 2. Load data user berdasarkan username dari database MySQL
-                com.rizki.model.Pengguna.User user = dbManager.loadUser(username);
+                User user = dbManager.loadUser(username);
                 
                 // 3. Autentikasi kecocokan password dengan BCrypt
                 if (user != null && user.autentikasi(username, password)) {
