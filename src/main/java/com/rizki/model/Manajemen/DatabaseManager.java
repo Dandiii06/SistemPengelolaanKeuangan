@@ -41,7 +41,7 @@ public class DatabaseManager implements PenyimpananData {
      */
     private void initDatabase() {
         try (Connection conn = DatabaseHelper.getConnection();
-             Statement stmt = conn.createStatement()) {
+            Statement stmt = conn.createStatement()) {
             
             // Buat tabel users jika belum ada
             stmt.executeUpdate("CREATE TABLE IF NOT EXISTS users (" +
@@ -81,151 +81,192 @@ public class DatabaseManager implements PenyimpananData {
     }
 
     /**
-     * Method saveToStorage() menyimpan berbagai jenis objek (User, Transaksi, Anggaran)
-     * ke database secara dinamis dengan menggunakan pemeriksaan keyword 'instanceof'.
+     * Method saveToStorage() bertugas mendeteksi jenis kelas objek yang dikirim (User, Transaksi, atau Anggaran),
+     * lalu memproses penyimpanan atau pembaruan datanya ke database MySQL.
+     * Ini menerapkan Polimorfisme Parameter (Object data) agar satu fungsi bisa menerima berbagai jenis model data.
      */
     @Override
     public boolean saveToStorage(Object data) {
+        // Cek jika data yang dikirim kosong (null), return false (proses batal/gagal)
         if (data == null) {
             return false;
         }
 
-        // --- Kasus 1: Menyimpan / Mengupdate Data USER ---
+        // =========================================================================
+        // KASUS 1: JIKA OBJEK DATA YANG INGIN DISIMPAN ADALAH INSTANCE DARI CLASS USER
+        // =========================================================================
         if (data instanceof User) {
+            // Casting tipe data umum Object menjadi tipe spesifik User
             User user = (User) data;
+            // Mengambil relasi objek Profile dari objek User
             Profile profile = user.getProfil();
+            // Mengambil relasi objek Dompet dari objek User
             Dompet dompet = user.getDompet();
             
+            // Validasi: jika profil atau dompet bernilai null, hentikan proses dan return false
             if (profile == null || dompet == null) return false;
 
-            // Cek apakah user sudah ada di database (berdasarkan username)
+            // Inisialisasi status: menandakan apakah user tersebut sudah ada di tabel users
             boolean exists = false;
+            // Query SQL untuk memeriksa keberadaan username di tabel users
             String checkQuery = "SELECT COUNT(*) FROM users WHERE username = ?";
+            
+            // Membuka koneksi database dan menyiapkan PreparedStatement (mencegah SQL Injection)
             try (Connection conn = DatabaseHelper.getConnection();
-                 PreparedStatement checkStmt = conn.prepareStatement(checkQuery)) {
+                PreparedStatement checkStmt = conn.prepareStatement(checkQuery)) {
+                // Mengisi parameter tanda tanya pertama (?) dengan nilai username dari user
                 checkStmt.setString(1, user.getUsername());
+                // Mengeksekusi SELECT query dan menyimpan hasilnya di ResultSet rs
                 try (ResultSet rs = checkStmt.executeQuery()) {
+                    // Jika data ditemukan dan kolom pertama (COUNT) nilainya lebih besar dari 0
                     if (rs.next() && rs.getInt(1) > 0) {
-                        exists = true;
+                        exists = true; // Tandai bahwa user sudah ada (perlu UPDATE, bukan INSERT)
                     }
                 }
             } catch (SQLException e) {
-                e.printStackTrace();
+                e.printStackTrace(); // Tulis error stacktrace di console jika gagal
                 return false;
             }
 
+            // A. JIKA PENGGUNA SUDAH TERDAFTAR (exists == true), LAKUKAN UPDATE DATA
             if (exists) {
-                // Update data user yang sudah terdaftar
+                // SQL query untuk memperbarui informasi nama, nim, email, password, dan saldo awal berdasarkan username
                 String updateQuery = "UPDATE users SET nama = ?, nim = ?, email = ?, password = ?, saldo_awal = ? WHERE username = ?";
                 try (Connection conn = DatabaseHelper.getConnection();
-                     PreparedStatement stmt = conn.prepareStatement(updateQuery)) {
-                    stmt.setString(1, profile.getNama());
-                    stmt.setString(2, profile.getNim());
-                    stmt.setString(3, profile.getEmail());
-                    stmt.setString(4, user.getPassword());
-                    stmt.setDouble(5, dompet.getSaldo());
-                    stmt.setString(6, user.getUsername());
+                    PreparedStatement stmt = conn.prepareStatement(updateQuery)) {
+                    // Mengisi tiap parameter tanda tanya (?) sesuai urutan kolom pada query UPDATE
+                    stmt.setString(1, profile.getNama());        // ? ke-1: Nama Lengkap
+                    stmt.setString(2, profile.getNim());         // ? ke-2: NIM
+                    stmt.setString(3, profile.getEmail());       // ? ke-3: Email Student
+                    stmt.setString(4, user.getPassword());       // ? ke-4: Password Ter-hash
+                    stmt.setDouble(5, dompet.getSaldo());        // ? ke-5: Saldo Terkini Dompet
+                    stmt.setString(6, user.getUsername());       // ? ke-6: Username (kunci pencarian data)
+                    
+                    // Mengeksekusi instruksi update ke database MySQL
                     stmt.executeUpdate();
-                    return true;
+                    return true; // Berhasil memperbarui data user
                 } catch (SQLException e) {
                     e.printStackTrace();
                     return false;
                 }
-            } else {
-                // Insert data user baru
+            } 
+            // B. JIKA PENGGUNA BELUM TERDAFTAR (exists == false), LAKUKAN INSERT DATA BARU
+            else {
+                // SQL query untuk memasukkan baris data user baru ke tabel users
                 String insertQuery = "INSERT INTO users (nama, nim, email, username, password, saldo_awal) VALUES (?, ?, ?, ?, ?, ?)";
                 try (Connection conn = DatabaseHelper.getConnection();
-                     PreparedStatement stmt = conn.prepareStatement(insertQuery)) {
-                    stmt.setString(1, profile.getNama());
-                    stmt.setString(2, profile.getNim());
-                    stmt.setString(3, profile.getEmail());
-                    stmt.setString(4, user.getUsername());
-                    stmt.setString(5, user.getPassword());
-                    stmt.setDouble(6, dompet.getSaldo());
+                    PreparedStatement stmt = conn.prepareStatement(insertQuery)) {
+                    // Mengisi tiap parameter tanda tanya (?) sesuai urutan kolom pada query INSERT
+                    stmt.setString(1, profile.getNama());        // ? ke-1: Nama Lengkap
+                    stmt.setString(2, profile.getNim());         // ? ke-2: NIM
+                    stmt.setString(3, profile.getEmail());       // ? ke-3: Email Student
+                    stmt.setString(4, user.getUsername());       // ? ke-4: Username Unik
+                    stmt.setString(5, user.getPassword());       // ? ke-5: Password Ter-hash
+                    stmt.setDouble(6, dompet.getSaldo());        // ? ke-6: Saldo Awal Dompet
+                    
+                    // Mengeksekusi instruksi insert/penulisan ke database MySQL
                     stmt.executeUpdate();
-                    return true;
+                    return true; // Berhasil menyimpan data user baru
                 } catch (SQLException e) {
                     e.printStackTrace();
                     return false;
                 }
             }
         } 
-        // --- Kasus 2: Menyimpan Data TRANSAKSI (Pemasukan / Pengeluaran) ---
+        // =========================================================================
+        // KASUS 2: JIKA OBJEK DATA YANG INGIN DISIMPAN ADALAH INSTANCE DARI TRANSAKSI
+        // =========================================================================
         else if (data instanceof Transaksi) {
+            // Casting objek umum menjadi tipe spesifik Transaksi
             Transaksi tx = (Transaksi) data;
-            String tipe = "";
-            String detailSource = "";
+            String tipe = "";          // Menyimpan string tipe transaksi ("Pemasukan" atau "Pengeluaran")
+            String detailSource = "";   // Menyimpan string kategori pengeluaran atau sumber pemasukan
             
-            // Mengidentifikasi tipe transaksi (Pemasukan vs Pengeluaran)
+            // Cek polimorfik: Jika transaksi adalah Pemasukan
             if (tx instanceof Pemasukan) {
                 tipe = "Pemasukan";
-                detailSource = ((Pemasukan) tx).getSumber();
-            } else if (tx instanceof Pengeluaran) {
+                detailSource = ((Pemasukan) tx).getSumber(); // Ambil string nama sumber (misal: "Gaji")
+            } 
+            // Cek polimorfik: Jika transaksi adalah Pengeluaran
+            else if (tx instanceof Pengeluaran) {
                 tipe = "Pengeluaran";
                 Kategori cat = ((Pengeluaran) tx).getKategori();
-                detailSource = (cat != null) ? cat.getNamaKategori() : "Lainnya";
+                detailSource = (cat != null) ? cat.getNamaKategori() : "Lainnya"; // Ambil nama kategori belanja
             }
 
-            // Mendapatkan username aktif dari ViewManager
+            // Mendapatkan data username pengguna aktif yang sedang login dari ViewManager
             String currentUsername = com.rizki.view.ViewManager.getCurrentUsername();
 
-            // Memasukkan transaksi baru (atau update jika ID sudah ada)
+            // SQL Query INSERT yang cerdas: jika ID transaksi sudah ada, lakukan UPDATE (ON DUPLICATE KEY UPDATE)
             String insertTxQuery = "INSERT INTO transactions (id, username, jumlah, tanggal, catatan, tipe, detail_source) VALUES (?, ?, ?, ?, ?, ?, ?)"
                     + " ON DUPLICATE KEY UPDATE jumlah=?, tanggal=?, catatan=?, tipe=?, detail_source=?";
+            
             try (Connection conn = DatabaseHelper.getConnection();
-                 PreparedStatement stmt = conn.prepareStatement(insertTxQuery)) {
-                stmt.setString(1, tx.getIdTransaksi());
-                stmt.setString(2, currentUsername);
-                stmt.setDouble(3, tx.getJumlah());
-                stmt.setString(4, tx.getTanggal());
-                stmt.setString(5, tx.getCatatan());
-                stmt.setString(6, tipe);
-                stmt.setString(7, detailSource);
-                // Parameter untuk ON DUPLICATE KEY
-                stmt.setDouble(8, tx.getJumlah());
-                stmt.setString(9, tx.getTanggal());
-                stmt.setString(10, tx.getCatatan());
-                stmt.setString(11, tipe);
-                stmt.setString(12, detailSource);
+                PreparedStatement stmt = conn.prepareStatement(insertTxQuery)) {
+                // --- Set parameter untuk INSERT pertama kali ---
+                stmt.setString(1, tx.getIdTransaksi());      // ? ke-1: ID Transaksi Unik
+                stmt.setString(2, currentUsername);          // ? ke-2: Username Pemilik Transaksi
+                stmt.setDouble(3, tx.getJumlah());            // ? ke-3: Nominal Uang
+                stmt.setString(4, tx.getTanggal());           // ? ke-4: Tanggal Transaksi
+                stmt.setString(5, tx.getCatatan());           // ? ke-5: Catatan Deskripsi
+                stmt.setString(6, tipe);                     // ? ke-6: Tipe ("Pemasukan"/"Pengeluaran")
+                stmt.setString(7, detailSource);             // ? ke-7: Kategori/Sumber
+                
+                // --- Set parameter jika ID sudah ada (ON DUPLICATE KEY UPDATE) ---
+                stmt.setDouble(8, tx.getJumlah());            // ? ke-8: Update Nominal
+                stmt.setString(9, tx.getTanggal());           // ? ke-9: Update Tanggal
+                stmt.setString(10, tx.getCatatan());          // ? ke-10: Update Catatan
+                stmt.setString(11, tipe);                    // ? ke-11: Update Tipe
+                stmt.setString(12, detailSource);            // ? ke-12: Update Kategori/Sumber
+                
+                // Jalankan query SQL di MySQL
                 stmt.executeUpdate();
-                return true;
+                return true; // Berhasil menyimpan transaksi
             } catch (SQLException e) {
                 e.printStackTrace();
                 return false;
             }
         } 
-        // --- Kasus 3: Menyimpan Data ANGGARAN (Batas Anggaran) ---
+        // =========================================================================
+        // KASUS 3: JIKA OBJEK DATA YANG INGIN DISIMPAN ADALAH INSTANCE DARI ANGGARAN
+        // =========================================================================
         else if (data instanceof Anggaran) {
+            // Casting objek umum menjadi tipe spesifik Anggaran
             Anggaran budget = (Anggaran) data;
             String currentUsername = com.rizki.view.ViewManager.getCurrentUsername();
+            // Ambil nama kategori dan tipe periode
             String kat = (budget.getKategori() != null) ? budget.getKategori().getNamaKategori() : "Lainnya";
             String per = (budget.getPeriode() != null) ? budget.getPeriode().getRentangWaktu() : "Bulanan";
 
-            // Menghapus data batas anggaran lama untuk kategori yang sama, lalu memasukkan yang baru
+            // Untuk menghindari data ganda, kita hapus budget kategori tersebut yang lama baru kita input budget yang baru
             String deleteQuery = "DELETE FROM budgets WHERE username=? AND kategori=?";
             String insertQuery = "INSERT INTO budgets (username, kategori, batas_maksimal, periode, total_terpakai) VALUES (?, ?, ?, ?, ?)";
             
             try (Connection conn = DatabaseHelper.getConnection()) {
+                // 1. Eksekusi DELETE budget kategori yang lama
                 try (PreparedStatement delStmt = conn.prepareStatement(deleteQuery)) {
-                    delStmt.setString(1, currentUsername);
-                    delStmt.setString(2, kat);
+                    delStmt.setString(1, currentUsername); // ? ke-1: Username aktif
+                    delStmt.setString(2, kat);             // ? ke-2: Kategori anggaran
                     delStmt.executeUpdate();
                 }
+                
+                // 2. Eksekusi INSERT budget kategori yang baru
                 try (PreparedStatement insStmt = conn.prepareStatement(insertQuery)) {
-                    insStmt.setString(1, currentUsername);
-                    insStmt.setString(2, kat);
-                    insStmt.setDouble(3, budget.getBatasMaksimal());
-                    insStmt.setString(4, per);
-                    insStmt.setDouble(5, budget.getTotalTerpakai());
+                    insStmt.setString(1, currentUsername);               // ? ke-1: Username aktif
+                    insStmt.setString(2, kat);                           // ? ke-2: Kategori anggaran
+                    insStmt.setDouble(3, budget.getBatasMaksimal());     // ? ke-3: Limit maksimal anggaran
+                    insStmt.setString(4, per);                           // ? ke-4: Periode (Mingguan/Bulanan)
+                    insStmt.setDouble(5, budget.getTotalTerpakai());     // ? ke-5: Total uang terpakai saat ini
                     insStmt.executeUpdate();
                 }
-                return true;
+                return true; // Berhasil menyimpan budget
             } catch (SQLException e) {
                 e.printStackTrace();
                 return false;
             }
         }
 
+        // Return false jika objek data yang masuk tidak cocok dengan jenis data manapun
         return false;
     }
 
@@ -242,7 +283,7 @@ public class DatabaseManager implements PenyimpananData {
     public User loadUser(String username) {
         String userQuery = "SELECT nama, nim, email, password, saldo_awal FROM users WHERE username = ?";
         try (Connection conn = DatabaseHelper.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(userQuery)) {
+            PreparedStatement stmt = conn.prepareStatement(userQuery)) {
             
             stmt.setString(1, username);
             try (ResultSet rs = stmt.executeQuery()) {
