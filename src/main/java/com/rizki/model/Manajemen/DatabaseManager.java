@@ -8,30 +8,42 @@ import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
 
-import com.rizki.model.Database.DatabaseHelper;
-import com.rizki.model.Pengguna.User;
-import com.rizki.model.Pengguna.Profile;
-import com.rizki.model.Pengguna.Dompet;
-import com.rizki.model.keuangan.Transaksi;
-import com.rizki.model.keuangan.Pemasukan;
-import com.rizki.model.keuangan.Pengeluaran;
 import com.rizki.model.Anggaran.Anggaran;
 import com.rizki.model.Anggaran.Kategori;
 import com.rizki.model.Anggaran.PeriodeAnggaran;
+import com.rizki.model.Database.DatabaseHelper;
+import com.rizki.model.Pengguna.Dompet;
+import com.rizki.model.Pengguna.Profile;
+import com.rizki.model.Pengguna.User;
+import com.rizki.model.keuangan.Pemasukan;
+import com.rizki.model.keuangan.Pengeluaran;
+import com.rizki.model.keuangan.Transaksi;
 
+/**
+ * Class DatabaseManager bertanggung jawab untuk menangani operasi CRUD ke database MySQL.
+ * Class ini mengimplementasikan interface PenyimpananData untuk memenuhi prinsip Abstraksi OOP.
+ */
 public class DatabaseManager implements PenyimpananData {
-    private String filePath;
+    private String filePath; // Atribut cadangan jika ingin menyimpan data ke file (tidak digunakan langsung karena beralih ke MySQL)
 
+    /**
+     * Constructor DatabaseManager.
+     * Menginisialisasi koneksi database dan membuat tabel secara otomatis jika belum ada.
+     */
     public DatabaseManager(String filePath) {
         this.filePath = filePath;
         initDatabase();
     }
 
+    /**
+     * Method initDatabase() berjalan otomatis saat instansiasi.
+     * Membuat tabel 'users', 'transactions', dan 'budgets' jika belum terbentuk di MySQL.
+     */
     private void initDatabase() {
         try (Connection conn = DatabaseHelper.getConnection();
              Statement stmt = conn.createStatement()) {
             
-            // Buat tabel users jika belum ada (opsional, sudah ada tapi untuk memastikan)
+            // Buat tabel users jika belum ada
             stmt.executeUpdate("CREATE TABLE IF NOT EXISTS users (" +
                     "id INT AUTO_INCREMENT PRIMARY KEY," +
                     "nama VARCHAR(100)," +
@@ -68,12 +80,17 @@ public class DatabaseManager implements PenyimpananData {
         }
     }
 
+    /**
+     * Method saveToStorage() menyimpan berbagai jenis objek (User, Transaksi, Anggaran)
+     * ke database secara dinamis dengan menggunakan pemeriksaan keyword 'instanceof'.
+     */
     @Override
     public boolean saveToStorage(Object data) {
         if (data == null) {
             return false;
         }
 
+        // --- Kasus 1: Menyimpan / Mengupdate Data USER ---
         if (data instanceof User) {
             User user = (User) data;
             Profile profile = user.getProfil();
@@ -81,7 +98,7 @@ public class DatabaseManager implements PenyimpananData {
             
             if (profile == null || dompet == null) return false;
 
-            // Cek apakah user sudah ada di database
+            // Cek apakah user sudah ada di database (berdasarkan username)
             boolean exists = false;
             String checkQuery = "SELECT COUNT(*) FROM users WHERE username = ?";
             try (Connection conn = DatabaseHelper.getConnection();
@@ -98,7 +115,7 @@ public class DatabaseManager implements PenyimpananData {
             }
 
             if (exists) {
-                // Update
+                // Update data user yang sudah terdaftar
                 String updateQuery = "UPDATE users SET nama = ?, nim = ?, email = ?, password = ?, saldo_awal = ? WHERE username = ?";
                 try (Connection conn = DatabaseHelper.getConnection();
                      PreparedStatement stmt = conn.prepareStatement(updateQuery)) {
@@ -115,7 +132,7 @@ public class DatabaseManager implements PenyimpananData {
                     return false;
                 }
             } else {
-                // Insert
+                // Insert data user baru
                 String insertQuery = "INSERT INTO users (nama, nim, email, username, password, saldo_awal) VALUES (?, ?, ?, ?, ?, ?)";
                 try (Connection conn = DatabaseHelper.getConnection();
                      PreparedStatement stmt = conn.prepareStatement(insertQuery)) {
@@ -132,10 +149,14 @@ public class DatabaseManager implements PenyimpananData {
                     return false;
                 }
             }
-        } else if (data instanceof Transaksi) {
+        } 
+        // --- Kasus 2: Menyimpan Data TRANSAKSI (Pemasukan / Pengeluaran) ---
+        else if (data instanceof Transaksi) {
             Transaksi tx = (Transaksi) data;
             String tipe = "";
             String detailSource = "";
+            
+            // Mengidentifikasi tipe transaksi (Pemasukan vs Pengeluaran)
             if (tx instanceof Pemasukan) {
                 tipe = "Pemasukan";
                 detailSource = ((Pemasukan) tx).getSumber();
@@ -145,9 +166,10 @@ public class DatabaseManager implements PenyimpananData {
                 detailSource = (cat != null) ? cat.getNamaKategori() : "Lainnya";
             }
 
-            // Ganti username dinamis dari data atau thread context jika diperlukan
+            // Mendapatkan username aktif dari ViewManager
             String currentUsername = com.rizki.view.ViewManager.getCurrentUsername();
 
+            // Memasukkan transaksi baru (atau update jika ID sudah ada)
             String insertTxQuery = "INSERT INTO transactions (id, username, jumlah, tanggal, catatan, tipe, detail_source) VALUES (?, ?, ?, ?, ?, ?, ?)"
                     + " ON DUPLICATE KEY UPDATE jumlah=?, tanggal=?, catatan=?, tipe=?, detail_source=?";
             try (Connection conn = DatabaseHelper.getConnection();
@@ -159,7 +181,7 @@ public class DatabaseManager implements PenyimpananData {
                 stmt.setString(5, tx.getCatatan());
                 stmt.setString(6, tipe);
                 stmt.setString(7, detailSource);
-                // For duplicate key
+                // Parameter untuk ON DUPLICATE KEY
                 stmt.setDouble(8, tx.getJumlah());
                 stmt.setString(9, tx.getTanggal());
                 stmt.setString(10, tx.getCatatan());
@@ -171,13 +193,15 @@ public class DatabaseManager implements PenyimpananData {
                 e.printStackTrace();
                 return false;
             }
-        } else if (data instanceof Anggaran) {
+        } 
+        // --- Kasus 3: Menyimpan Data ANGGARAN (Batas Anggaran) ---
+        else if (data instanceof Anggaran) {
             Anggaran budget = (Anggaran) data;
             String currentUsername = com.rizki.view.ViewManager.getCurrentUsername();
             String kat = (budget.getKategori() != null) ? budget.getKategori().getNamaKategori() : "Lainnya";
             String per = (budget.getPeriode() != null) ? budget.getPeriode().getRentangWaktu() : "Bulanan";
 
-            // Delete existing budget for this category to overwrite, or insert
+            // Menghapus data batas anggaran lama untuk kategori yang sama, lalu memasukkan yang baru
             String deleteQuery = "DELETE FROM budgets WHERE username=? AND kategori=?";
             String insertQuery = "INSERT INTO budgets (username, kategori, batas_maksimal, periode, total_terpakai) VALUES (?, ?, ?, ?, ?)";
             
@@ -211,6 +235,10 @@ public class DatabaseManager implements PenyimpananData {
         return null;
     }
 
+    /**
+     * Memuat objek User lengkap dari database berdasarkan username,
+     * termasuk data profil personal dan data dompet serta semua transaksi sejarahnya.
+     */
     public User loadUser(String username) {
         String userQuery = "SELECT nama, nim, email, password, saldo_awal FROM users WHERE username = ?";
         try (Connection conn = DatabaseHelper.getConnection();
@@ -225,11 +253,11 @@ public class DatabaseManager implements PenyimpananData {
                     String password = rs.getString("password");
                     double saldoAwal = rs.getDouble("saldo_awal");
                     
-                    // Rekonstruksi Profile dan Dompet menggunakan constructor
+                    // Rekonstruksi Profile dan Dompet menggunakan constructor (OOP Composition)
                     Profile profile = new Profile(nama, password, nim, email);
                     Dompet dompet = new Dompet(saldoAwal);
                     
-                    // Load Transaksi untuk user ini
+                    // Memuat seluruh transaksi sejarah milik user ini dari MySQL
                     List<Transaksi> txList = new ArrayList<>();
                     String txQuery = "SELECT id, jumlah, tanggal, catatan, tipe, detail_source FROM transactions WHERE username = ?";
                     try (PreparedStatement txStmt = conn.prepareStatement(txQuery)) {
@@ -243,6 +271,7 @@ public class DatabaseManager implements PenyimpananData {
                                 String tipe = txRs.getString("tipe");
                                 String detailSource = txRs.getString("detail_source");
                                 
+                                // Rekonstruksi polimorfik Pemasukan / Pengeluaran berdasarkan kolom 'tipe'
                                 if ("Pemasukan".equalsIgnoreCase(tipe)) {
                                     Pemasukan p = new Pemasukan(id, jumlah, tanggal, catatan, detailSource);
                                     dompet.tambahTransaksi(p);
@@ -255,7 +284,7 @@ public class DatabaseManager implements PenyimpananData {
                         }
                     }
                     
-                    // Rekonstruksi User menggunakan constructor (Komposisi & Agregasi)
+                    // Rekonstruksi objek User utuh
                     User user = new User(username, password, profile, dompet);
                     return user;
                 }
@@ -266,6 +295,10 @@ public class DatabaseManager implements PenyimpananData {
         return null;
     }
 
+    /**
+     * Memuat daftar anggaran aktif milik pengguna dari database,
+     * dan menghitung ulang sisa limit belanja berdasarkan riwayat pengeluaran rill.
+     */
     public List<Anggaran> loadBudgets(String username, Pengeluaran[] listPengeluaran) {
         List<Anggaran> list = new ArrayList<>();
         String query = "SELECT kategori, batas_maksimal, periode FROM budgets WHERE username = ?";
@@ -283,6 +316,7 @@ public class DatabaseManager implements PenyimpananData {
                     PeriodeAnggaran periodeObj = new PeriodeAnggaran(per);
                     
                     Anggaran anggaran = new Anggaran(limit, kategoriObj, periodeObj);
+                    // Hitung jumlah pengeluaran rill untuk kategori anggaran ini
                     anggaran.hitungSisaLimit(listPengeluaran);
                     list.add(anggaran);
                 }

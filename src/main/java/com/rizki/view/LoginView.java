@@ -21,26 +21,37 @@ import javafx.scene.paint.Color;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 
+/**
+ * Class LoginView merepresentasikan halaman masuk (login) ke dalam aplikasi.
+ * Halaman ini didesain menggunakan JavaFX layouts (HBox, VBox) secara programmatikal (code-based UI).
+ */
 public class LoginView {
-    private HBox root;
-    private TextField txtUsername;
-    private PasswordField txtPassword;
-    private Button btnLogin;
-    private Button btnToRegister;
-    private Label lblError;
+    private HBox root;                    // Layout utama horizontal (kiri: banner, kanan: form)
+    private TextField txtUsername;         // Input text untuk username
+    private PasswordField txtPassword;     // Input text tersembunyi untuk password
+    private Button btnLogin;               // Tombol aksi login
+    private Button btnToRegister;          // Tombol link untuk pindah ke halaman register
+    private Label lblError;                // Label untuk menampilkan pesan error jika login gagal
 
+    /**
+     * Constructor LoginView untuk membuat tampilan.
+     */
     public LoginView() {
         createView();
     }
 
+    /**
+     * Membuat seluruh komponen UI dan layouting halaman login secara detail.
+     */
     private void createView() {
         root = new HBox();
         root.setPrefSize(1000, 650);
 
-        // --- LEFT PANEL (Brand Presentation) ---
+        // --- LEFT PANEL (Brand Presentation / Banner samping kiri) ---
         VBox leftPanel = new VBox(20);
         leftPanel.setPrefWidth(400);
         leftPanel.setMinWidth(350);
+        // Menggunakan styling gradasi warna ungu modern dengan CSS inline JavaFX
         leftPanel.setStyle("-fx-background-color: linear-gradient(to bottom right, #6366f1, #8b5cf6);");
         leftPanel.setPadding(new Insets(45));
         leftPanel.setAlignment(Pos.CENTER_LEFT);
@@ -60,14 +71,14 @@ public class LoginView {
 
         leftPanel.getChildren().addAll(lblEmoji, lblBrandName, lblBrandSlogan);
 
-        // --- RIGHT PANEL (Login Form) ---
+        // --- RIGHT PANEL (Login Form / Area kanan) ---
         VBox rightPanel = new VBox();
         rightPanel.setPrefWidth(600);
         rightPanel.setAlignment(Pos.CENTER);
         rightPanel.setPadding(new Insets(40));
-        rightPanel.setStyle("-fx-background-color: #0f172a;");
+        rightPanel.setStyle("-fx-background-color: #0f172a;"); // Latar belakang gelap (dark mode)
 
-        // The Login Form Card
+        // Form Card (Kotak form login)
         VBox formCard = new VBox(15);
         formCard.getStyleClass().add("card");
         formCard.setPrefWidth(440);
@@ -81,7 +92,7 @@ public class LoginView {
         lblSubtitle.getStyleClass().add("label-subtitle");
         VBox.setMargin(lblSubtitle, new Insets(0, 0, 15, 0));
 
-        // Form Fields
+        // Form Input Fields
         Label lblUsername = new Label("Username");
         lblUsername.getStyleClass().add("form-label");
         txtUsername = new TextField();
@@ -102,6 +113,7 @@ public class LoginView {
         btnLogin.setMaxWidth(Double.MAX_VALUE);
         VBox.setMargin(btnLogin, new Insets(10, 0, 5, 0));
 
+        // Tautan ke pendaftaran akun baru
         HBox registerContainer = new HBox(5);
         registerContainer.setAlignment(Pos.CENTER);
         Label lblNoAccount = new Label("Belum punya akun?");
@@ -110,6 +122,7 @@ public class LoginView {
         btnToRegister.getStyleClass().add("link-button");
         registerContainer.getChildren().addAll(lblNoAccount, btnToRegister);
 
+        // Menambahkan seluruh komponen ke dalam kartu form login
         formCard.getChildren().addAll(
             lblTitle, lblSubtitle,
             lblUsername, txtUsername,
@@ -124,33 +137,41 @@ public class LoginView {
         HBox.setHgrow(rightPanel, Priority.ALWAYS);
         root.getChildren().addAll(leftPanel, rightPanel);
 
-        // --- CONTROLLER EVENTS ---
+        // --- CONTROLLER EVENTS (Aksi Event Handler Tombol) ---
         btnLogin.setOnAction(e -> {
             String username = txtUsername.getText().trim();
             String password = txtPassword.getText().trim();
             
             com.rizki.model.Manajemen.Validator validator = new com.rizki.model.Manajemen.Validator();
+            // 1. Validasi input apakah ada field kosong
             if (!validator.cekValidasiLogin(username, password)) {
                 lblError.setText("Username dan Password tidak boleh kosong!");
                 lblError.setVisible(true);
             } else {
                 com.rizki.model.Manajemen.DatabaseManager dbManager = new com.rizki.model.Manajemen.DatabaseManager("");
+                // 2. Load data user berdasarkan username dari database MySQL
                 com.rizki.model.Pengguna.User user = dbManager.loadUser(username);
                 
+                // 3. Autentikasi kecocokan password dengan BCrypt
                 if (user != null && user.autentikasi(username, password)) {
                     lblError.setVisible(false);
-                    // Pindah ke dashboard
+                    // Jika sukses login, navigasikan stage ke halaman Home/Dashboard
                     ViewManager.showHomeView(username);
                 } else {
+                    // Tampilkan pesan error jika salah username/password
                     lblError.setText("Username atau Password salah!");
                     lblError.setVisible(true);
                 }
             }
         });
 
+        // Event handler tombol registrasi: navigasikan ke RegisterView
         btnToRegister.setOnAction(e -> ViewManager.showRegisterView());
     }
 
+    /**
+     * Mendapatkan root panel tampilan login untuk dipasang pada Scene.
+     */
     public Parent getView() {
         return root;
     }

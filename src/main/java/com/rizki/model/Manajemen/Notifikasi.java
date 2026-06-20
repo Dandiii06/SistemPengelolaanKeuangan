@@ -3,13 +3,24 @@ package com.rizki.model.Manajemen;
 import com.rizki.model.Anggaran.Anggaran;
 import com.rizki.model.Pengguna.Dompet;
 
+/**
+ * Class Notifikasi bertanggung jawab untuk memantau kondisi saldo dan batas anggaran pengguna,
+ * lalu memberikan pesan peringatan jika saldo kritis atau anggaran hampir/sudah habis.
+ */
 public class Notifikasi {
+    // Menyimpan string pesan peringatan terakhir yang dihasilkan
     private String pesanPeringatan;
 
+    /**
+     * Constructor inisialisasi pesan peringatan kosong.
+     */
     public Notifikasi() {
         this.pesanPeringatan = "";
     }
 
+    /**
+     * Menyimpan pesan ke dalam atribut dan menampilkannya di console (untuk log debugging).
+     */
     public void tampilkanPesan(String pesan) {
         if (pesan != null && !pesan.isEmpty()) {
             this.pesanPeringatan = pesan;
@@ -17,6 +28,10 @@ public class Notifikasi {
         }
     }
 
+    /**
+     * Memeriksa sisa anggaran dari suatu kategori.
+     * Jika limit anggaran sudah habis atau tersisa kurang dari 20%, berikan pesan peringatan.
+     */
     public void cekAmbangBatas(Anggaran anggaran) {
         if (anggaran != null) {
             double sisaBudget = anggaran.getBatasMaksimal() - anggaran.getTotalTerpakai();
@@ -28,6 +43,10 @@ public class Notifikasi {
         }
     }
 
+    /**
+     * Memeriksa total saldo di dompet pengguna.
+     * Jika saldo habis (<= 0) atau kritis (< Rp 50.000), berikan pesan peringatan.
+     */
     public void cekSaldoKritis(Dompet dompet) {
         if (dompet != null) {
             double saldo = dompet.getSaldo();
@@ -39,6 +58,9 @@ public class Notifikasi {
         }
     }
 
+    /**
+     * Mengambil isi pesan peringatan terakhir.
+     */
     public String getPesanPeringatan() {
         return pesanPeringatan;
     }

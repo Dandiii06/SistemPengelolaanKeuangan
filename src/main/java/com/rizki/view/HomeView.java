@@ -1,5 +1,24 @@
 package com.rizki.view;
 
+import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+import com.rizki.model.Anggaran.Anggaran;
+import com.rizki.model.Anggaran.Kategori;
+import com.rizki.model.Anggaran.PeriodeAnggaran;
+import com.rizki.model.Manajemen.DatabaseManager;
+import com.rizki.model.Manajemen.Notifikasi;
+import com.rizki.model.Manajemen.Validator;
+import com.rizki.model.Pengguna.User;
+import com.rizki.model.keuangan.Pemasukan;
+import com.rizki.model.keuangan.Pengeluaran;
+import com.rizki.model.keuangan.Transaksi;
+
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Parent;
@@ -24,37 +43,21 @@ import javafx.scene.shape.Circle;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 
-import java.time.LocalDate;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-
-import com.rizki.model.Pengguna.User;
-import com.rizki.model.Pengguna.Dompet;
-import com.rizki.model.Pengguna.Profile;
-import com.rizki.model.keuangan.Transaksi;
-import com.rizki.model.keuangan.Pemasukan;
-import com.rizki.model.keuangan.Pengeluaran;
-import com.rizki.model.Anggaran.Anggaran;
-import com.rizki.model.Anggaran.Kategori;
-import com.rizki.model.Anggaran.PeriodeAnggaran;
-import com.rizki.model.Manajemen.DatabaseManager;
-import com.rizki.model.Manajemen.Validator;
-import com.rizki.model.Manajemen.Notifikasi;
-
+/**
+ * Class HomeView merepresentasikan halaman dashboard utama aplikasi (Home View).
+ * Tampilan ini dinamis dan memiliki 5 panel navigasi utama: Ringkasan, Transaksi, Anggaran, Laporan, dan Profil.
+ * Di-render secara modular menggunakan JavaFX pane (BorderPane, StackPane, VBox, HBox).
+ */
 public class HomeView {
-    private BorderPane root;
-    private String username;
+    private BorderPane root;              // Layout utama pembungkus (Sidebar di KIRI, ContentArea di TENGAH)
+    private String username;              // Username pengguna aktif
     
-    // Model and Database state
-    private User userModel;
-    private DatabaseManager dbManager;
-    private List<Anggaran> listAnggaran;
+    // Objek State Data (Model dan Database)
+    private User userModel;               // Menyimpan data user (profil, dompet, transaksi)
+    private DatabaseManager dbManager;    // Pengelola koneksi penyimpanan database
+    private List<Anggaran> listAnggaran;  // Menyimpan daftar batas anggaran user
     
-    // Sidebar buttons
+    // Komponen Navigasi Sidebar (Tombol menu)
     private Button btnRingkasan;
     private Button btnTransaksi;
     private Button btnAnggaran;
@@ -62,17 +65,17 @@ public class HomeView {
     private Button btnProfil;
     private Button btnLogout;
     
-    // Main dynamic content pane
+    // Panel Konten Dinamis utama (di tengah)
     private StackPane contentArea;
     
-    // Sub-panes
+    // Sub-halaman (pane) yang akan ditukarkan di dalam contentArea
     private VBox paneRingkasan;
     private VBox paneTransaksi;
     private VBox paneAnggaran;
     private VBox paneLaporan;
     private VBox paneProfil;
 
-    // Ringkasan elements
+    // Komponen UI Ringkasan (Overview)
     private Label lblGreeting;
     private Label lblTotalSaldoValue;
     private Label lblTotalPemasukanValue;
@@ -80,34 +83,40 @@ public class HomeView {
     private VBox listRecentTransactions;
     private VBox listBudgetProgressBars;
 
-    // Transaksi elements
+    // Komponen UI Transaksi
     private VBox listAllTransactions;
 
-    // Anggaran elements
+    // Komponen UI Anggaran
     private VBox listActiveBudgets;
 
-    // Laporan elements
+    // Komponen UI Laporan Analisis
     private Label lblDailyAverage;
     private Label lblMaxCategory;
     private Label lblSavingsRatio;
     private VBox listLaporanDistribution;
 
-    // Profil elements
+    // Komponen UI Profil Akun
     private Label lblAvatarName;
     private Label lblNimText;
     private Label lblLetter;
 
+    /**
+     * Constructor HomeView.
+     * Mengambil data user ter-update dari database, memuat anggaran aktif,
+     * serta membuat komponen-komponen UI awal (createView) dan menyegarkan data (refreshAllData).
+     */
     public HomeView(String username) {
         this.username = username;
         this.dbManager = new DatabaseManager("");
         this.userModel = dbManager.loadUser(username);
+        // Memuat anggaran dari database dan menghitung sisa anggaran rill
         if (this.userModel != null) {
             this.listAnggaran = dbManager.loadBudgets(username, getPengeluarans(userModel.getDompet().getDaftarTransaksi()));
         } else {
             this.listAnggaran = new ArrayList<>();
         }
-        createView();
-        refreshAllData();
+        createView();         // Merakit layout & komponen
+        refreshAllData();     // Membaca & menyinkronkan data model ke UI
     }
 
     private void createView() {
@@ -230,7 +239,7 @@ public class HomeView {
         header.setAlignment(Pos.CENTER_LEFT);
         VBox titleWrapper = new VBox(5);
         lblGreeting = new Label("Halo, " + (userModel != null ? userModel.getProfil().getNama() : username) + "!");
-        lblGreeting.setFont(Font.font("Segoe UI", FontWeight.BOLD, 26));
+        lblGreeting.setFont(Font.font("Segoe UI", FontWeight.BOLD, 30));
         lblGreeting.setTextFill(Color.WHITE);
         Label lblGreetingDesc = new Label("Berikut adalah ringkasan keuangan pribadi Anda hari ini.");
         titleWrapper.getChildren().addAll(lblGreeting, lblGreetingDesc);
@@ -834,14 +843,22 @@ public class HomeView {
         return root;
     }
 
+    /**
+     * Memperbarui seluruh data yang ditampilkan di UI dashboard dengan mengambil
+     * data terbaru dari model Java. Dipanggil setelah transaksi/budget disimpan.
+     */
     private void refreshAllData() {
         if (userModel == null) return;
-        refreshRingkasanData();
-        refreshTransaksiData();
-        refreshAnggaranData();
-        refreshLaporanData();
+        refreshRingkasanData(); // Segarkan kartu metric & transaksi terakhir di tab Ringkasan
+        refreshTransaksiData(); // Segarkan tabel riwayat transaksi lengkap
+        refreshAnggaranData();  // Segarkan progress bar batas anggaran aktif
+        refreshLaporanData();   // Segarkan grafik analisis rata-rata & distribusi pengeluaran
     }
 
+    /**
+     * Menyegarkan panel Ringkasan (Overview):
+     * menghitung total saldo, total masuk, total keluar, dan merender 5 transaksi teranyar.
+     */
     private void refreshRingkasanData() {
         if (userModel == null) return;
         double saldo = userModel.getDompet().getSaldo();
