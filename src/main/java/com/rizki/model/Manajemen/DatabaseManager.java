@@ -344,7 +344,7 @@ public class DatabaseManager implements PenyimpananData {
         List<Anggaran> list = new ArrayList<>();
         String query = "SELECT kategori, batas_maksimal, periode FROM budgets WHERE username = ?";
         try (Connection conn = DatabaseHelper.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(query)) {
+            PreparedStatement stmt = conn.prepareStatement(query)) {
             
             stmt.setString(1, username);
             try (ResultSet rs = stmt.executeQuery()) {
