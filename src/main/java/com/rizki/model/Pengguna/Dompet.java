@@ -70,4 +70,40 @@ public class Dompet {
         // Mengganti referensi array lama dengan array baru
         this.daftarTransaksi = baru;
     }
+
+    /**
+     * Menghapus transaksi berdasarkan ID transaksi dari daftar transaksi dompet.
+     * Mengembalikan efek nominal transaksi terhadap saldo utama (pemasukan mengurangi saldo, pengeluaran menambah saldo).
+     */
+    public void hapusTransaksi(String idTransaksi) {
+        if (idTransaksi == null || this.daftarTransaksi == null) return;
+        
+        int index = -1;
+        for (int i = 0; i < this.daftarTransaksi.length; i++) {
+            if (this.daftarTransaksi[i] != null && idTransaksi.equals(this.daftarTransaksi[i].getIdTransaksi())) {
+                index = i;
+                break;
+            }
+        }
+        
+        // Jika transaksi ditemukan
+        if (index != -1) {
+            Transaksi t = this.daftarTransaksi[index];
+            
+            // Batalkan efek transaksi terhadap saldo utama
+            if (t instanceof com.rizki.model.keuangan.Pemasukan) {
+                // Hapus pemasukan = mengurangi saldo utama
+                this.saldoUtama -= t.getJumlah();
+            } else if (t instanceof com.rizki.model.keuangan.Pengeluaran) {
+                // Hapus pengeluaran = mengembalikan dana (menambah saldo utama)
+                this.saldoUtama += t.getJumlah();
+            }
+            
+            // Hapus dari array dengan resize
+            Transaksi[] baru = new Transaksi[this.daftarTransaksi.length - 1];
+            System.arraycopy(this.daftarTransaksi, 0, baru, 0, index);
+            System.arraycopy(this.daftarTransaksi, index + 1, baru, index, this.daftarTransaksi.length - index - 1);
+            this.daftarTransaksi = baru;
+        }
+    }
 }

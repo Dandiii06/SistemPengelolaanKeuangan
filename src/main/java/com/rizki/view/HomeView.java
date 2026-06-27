@@ -238,14 +238,15 @@ public class HomeView {
         paneRingkasan = new VBox(25);
         paneRingkasan.setAlignment(Pos.TOP_LEFT);
 
-        // Header
+        // Header Ringkasan
         HBox header = new HBox();
         header.setAlignment(Pos.CENTER_LEFT);
         VBox titleWrapper = new VBox(5);
-        lblGreeting = new Label("Halo, " + (userModel != null ? userModel.getProfil().getNama() : username) + "!");
-        lblGreeting.setFont(Font.font("Segoe UI", FontWeight.BOLD, 30));
-        lblGreeting.setTextFill(Color.WHITE);
-        Label lblGreetingDesc = new Label("Berikut adalah ringkasan keuangan pribadi Anda hari ini.");
+        lblGreeting = new Label("Selamat Datang, " + (userModel != null ? userModel.getProfil().getNama() : username) + "!");
+        lblGreeting.setFont(Font.font("Segoe UI", FontWeight.BOLD, 28));
+        lblGreeting.setTextFill(Color.web("#e2e8f0"));
+        Label lblGreetingDesc = new Label("Pantau kondisi finansial, anggaran, dan riwayat pengeluaran Anda secara real-time.");
+        lblGreetingDesc.setStyle("-fx-text-fill: #94a3b8; -fx-font-size: 13px;");
         titleWrapper.getChildren().addAll(lblGreeting, lblGreetingDesc);
 
         Region spacer = new Region();
@@ -331,7 +332,10 @@ public class HomeView {
         return card;
     }
 
-    private HBox createTransactionRow(String desc, String cat, String date, String amount, boolean isIncome) {
+    /**
+     * Membuat satu baris data transaksi dengan opsi Hapus Transaksi (kecuali untuk list recent ringkasan)
+     */
+    private HBox createTransactionRow(String idTx, String desc, String cat, String date, String amount, boolean isIncome, boolean showDeleteButton) {
         HBox row = new HBox(15);
         row.setAlignment(Pos.CENTER_LEFT);
         row.setPadding(new Insets(10));
@@ -361,14 +365,49 @@ public class HomeView {
         lblAmount.setTextFill(isIncome ? Color.web("#10b981") : Color.web("#f43f5e"));
 
         row.getChildren().addAll(iconPane, descBox, spacer, lblAmount);
+
+        // Jika tombol hapus diaktifkan (khusus di tab Riwayat Transaksi lengkap)
+        if (showDeleteButton && idTx != null) {
+            Button btnDeleteTx = new Button("Hapus");
+            btnDeleteTx.setStyle("-fx-background-color: rgba(244, 63, 94, 0.15); -fx-text-fill: #fda4af; -fx-padding: 4px 10px 4px 10px; -fx-background-radius: 6px; -fx-font-size: 11px; -fx-cursor: hand; -fx-border-color: rgba(244, 63, 94, 0.4); -fx-border-width: 1px; -fx-border-radius: 6px; -fx-font-weight: bold;");
+            btnDeleteTx.setOnMouseEntered(e -> btnDeleteTx.setStyle("-fx-background-color: rgba(244, 63, 94, 0.35); -fx-text-fill: #ffffff; -fx-padding: 4px 10px 4px 10px; -fx-background-radius: 6px; -fx-font-size: 11px; -fx-cursor: hand; -fx-border-color: #f43f5e; -fx-border-width: 1px; -fx-border-radius: 6px; -fx-font-weight: bold;"));
+            btnDeleteTx.setOnMouseExited(e -> btnDeleteTx.setStyle("-fx-background-color: rgba(244, 63, 94, 0.15); -fx-text-fill: #fda4af; -fx-padding: 4px 10px 4px 10px; -fx-background-radius: 6px; -fx-font-size: 11px; -fx-border-color: rgba(244, 63, 94, 0.4); -fx-border-width: 1px; -fx-border-radius: 6px; -fx-font-weight: bold;"));
+            btnDeleteTx.setOnAction(e -> {
+                Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
+                confirm.setTitle("Konfirmasi Hapus");
+                confirm.setHeaderText("Hapus transaksi ini?");
+                confirm.setContentText("Nominal saldo dompet akan disesuaikan secara otomatis.");
+                confirm.showAndWait().ifPresent(response -> {
+                    if (response == javafx.scene.control.ButtonType.OK) {
+                        // 1. Hapus dari dompet (in-memory) dan sesuaikan saldo
+                        userModel.getDompet().hapusTransaksi(idTx);
+                        // 2. Hapus dari database MySQL
+                        dbManager.deleteTransaction(idTx);
+                        // 3. Simpan perubahan saldo user ke database
+                        dbManager.saveToStorage(userModel);
+                        
+                        // Muat ulang budgets untuk sinkronisasi sisa limit anggaran
+                        listAnggaran = dbManager.loadBudgets(username, getPengeluarans(userModel.getDompet().getDaftarTransaksi()));
+                        
+                        // 4. Refresh tampilan
+                        refreshAllData();
+                    }
+                });
+            });
+            row.getChildren().add(btnDeleteTx);
+        }
+
         return row;
     }
 
-    private VBox createBudgetProgressBar(String category, double progress, String detailText) {
+    /**
+     * Membuat progress bar anggaran dengan tombol Edit dan Hapus (khusus di halaman Anggaran Aktif)
+     */
+    private VBox createBudgetProgressBar(Anggaran budget, double progress, String detailText, boolean showActionButtons) {
         VBox box = new VBox(6);
         
         HBox labelRow = new HBox();
-        Label lblCat = new Label(category);
+        Label lblCat = new Label(budget.getKategori().getNamaKategori());
         lblCat.setTextFill(Color.WHITE);
         lblCat.setFont(Font.font("Segoe UI", FontWeight.BOLD, 13));
         
@@ -379,6 +418,76 @@ public class HomeView {
         lblDetail.setStyle("-fx-text-fill: #94a3b8; -fx-font-size: 11px;");
         
         labelRow.getChildren().addAll(lblCat, spacer, lblDetail);
+
+        // Tambah tombol aksi jika diaktifkan (di halaman Anggaran aktif)
+        if (showActionButtons) {
+            Button btnEdit = new Button("Edit");
+            // Menggunakan styling modern berlabel teks untuk menghindari masalah unicode emoji
+            btnEdit.setStyle("-fx-background-color: rgba(99, 102, 241, 0.15); -fx-text-fill: #a5b4fc; -fx-padding: 3px 8px 3px 8px; -fx-background-radius: 6px; -fx-font-size: 11px; -fx-cursor: hand; -fx-border-color: rgba(99, 102, 241, 0.4); -fx-border-width: 1px; -fx-border-radius: 6px; -fx-font-weight: bold;");
+            btnEdit.setOnMouseEntered(e -> btnEdit.setStyle("-fx-background-color: rgba(99, 102, 241, 0.35); -fx-text-fill: #ffffff; -fx-padding: 3px 8px 3px 8px; -fx-background-radius: 6px; -fx-font-size: 11px; -fx-cursor: hand; -fx-border-color: #6366f1; -fx-border-width: 1px; -fx-border-radius: 6px; -fx-font-weight: bold;"));
+            btnEdit.setOnMouseExited(e -> btnEdit.setStyle("-fx-background-color: rgba(99, 102, 241, 0.15); -fx-text-fill: #a5b4fc; -fx-padding: 3px 8px 3px 8px; -fx-background-radius: 6px; -fx-font-size: 11px; -fx-border-color: rgba(99, 102, 241, 0.4); -fx-border-width: 1px; -fx-border-radius: 6px; -fx-font-weight: bold;"));
+
+            btnEdit.setOnAction(e -> {
+                // Tampilkan popup input edit nominal anggaran
+                javafx.scene.control.TextInputDialog dialog = new javafx.scene.control.TextInputDialog(String.valueOf((int)budget.getBatasMaksimal()));
+                dialog.setTitle("Edit Batas Anggaran");
+                dialog.setHeaderText("Kategori: " + budget.getKategori().getNamaKategori() + " (" + budget.getPeriode().getRentangWaktu() + ")");
+                dialog.setContentText("Masukkan batas anggaran baru (Rp):");
+                dialog.showAndWait().ifPresent(newLimitStr -> {
+                    try {
+                        double newLimit = Double.parseDouble(newLimitStr.trim());
+                        if (newLimit <= 0) {
+                            Alert alert = new Alert(Alert.AlertType.WARNING);
+                            alert.setTitle("Input Tidak Valid");
+                            alert.setContentText("Batas anggaran harus lebih besar dari 0.");
+                            alert.showAndWait();
+                            return;
+                        }
+                        // Update batas anggaran
+                        budget.setTotalTerpakai(budget.getTotalTerpakai()); 
+                        // Buat objek anggaran baru dengan limit yang diedit lalu simpan
+                        Anggaran newBudget = new Anggaran(newLimit, budget.getKategori(), budget.getPeriode());
+                        dbManager.saveToStorage(newBudget);
+                        
+                        // Reload & refresh
+                        listAnggaran = dbManager.loadBudgets(username, getPengeluarans(userModel.getDompet().getDaftarTransaksi()));
+                        refreshAllData();
+                    } catch (NumberFormatException ex) {
+                        Alert alert = new Alert(Alert.AlertType.ERROR);
+                        alert.setTitle("Error");
+                        alert.setContentText("Input harus berupa nominal angka.");
+                        alert.showAndWait();
+                    }
+                });
+            });
+
+            Button btnDelete = new Button("Hapus");
+            // Menggunakan styling modern berlabel teks untuk menghindari masalah unicode emoji
+            btnDelete.setStyle("-fx-background-color: rgba(244, 63, 94, 0.15); -fx-text-fill: #fda4af; -fx-padding: 3px 8px 3px 8px; -fx-background-radius: 6px; -fx-font-size: 11px; -fx-cursor: hand; -fx-border-color: rgba(244, 63, 94, 0.4); -fx-border-width: 1px; -fx-border-radius: 6px; -fx-font-weight: bold;");
+            btnDelete.setOnMouseEntered(e -> btnDelete.setStyle("-fx-background-color: rgba(244, 63, 94, 0.35); -fx-text-fill: #ffffff; -fx-padding: 3px 8px 3px 8px; -fx-background-radius: 6px; -fx-font-size: 11px; -fx-cursor: hand; -fx-border-color: #f43f5e; -fx-border-width: 1px; -fx-border-radius: 6px; -fx-font-weight: bold;"));
+            btnDelete.setOnMouseExited(e -> btnDelete.setStyle("-fx-background-color: rgba(244, 63, 94, 0.15); -fx-text-fill: #fda4af; -fx-padding: 3px 8px 3px 8px; -fx-background-radius: 6px; -fx-font-size: 11px; -fx-border-color: rgba(244, 63, 94, 0.4); -fx-border-width: 1px; -fx-border-radius: 6px; -fx-font-weight: bold;"));
+
+            btnDelete.setOnAction(e -> {
+                Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
+                confirm.setTitle("Konfirmasi Hapus");
+                confirm.setHeaderText("Hapus anggaran kategori ini?");
+                confirm.setContentText("Kategori: " + budget.getKategori().getNamaKategori() + " (" + budget.getPeriode().getRentangWaktu() + ")");
+                confirm.showAndWait().ifPresent(btnType -> {
+                    if (btnType == javafx.scene.control.ButtonType.OK) {
+                        dbManager.deleteBudget(username, budget.getKategori().getNamaKategori(), budget.getPeriode().getRentangWaktu());
+                        // Reload
+                        listAnggaran = dbManager.loadBudgets(username, getPengeluarans(userModel.getDompet().getDaftarTransaksi()));
+                        refreshAllData();
+                    }
+                });
+            });
+            
+            HBox actionContainer = new HBox(6, btnEdit, btnDelete);
+            actionContainer.setAlignment(Pos.CENTER_LEFT);
+            actionContainer.setPadding(new Insets(0, 0, 0, 10));
+            labelRow.getChildren().add(actionContainer);
+        }
+
 
         ProgressBar pb = new ProgressBar(progress);
         pb.setMaxWidth(Double.MAX_VALUE);
@@ -399,9 +508,10 @@ public class HomeView {
         paneTransaksi = new VBox(25);
         paneTransaksi.setAlignment(Pos.TOP_LEFT);
 
-        Label lblTitle = new Label("Riwayat Transaksi");
-        lblTitle.setFont(Font.font("Segoe UI", FontWeight.BOLD, 26));
-        lblTitle.setTextFill(Color.WHITE);
+        // Header Transaksi
+        Label lblTitle = new Label("Riwayat Transaksi Keuangan");
+        lblTitle.setFont(Font.font("Segoe UI", FontWeight.BOLD, 28));
+        lblTitle.setTextFill(Color.web("#e2e8f0"));
 
         HBox mainLayout = new HBox(25);
         VBox.setVgrow(mainLayout, Priority.ALWAYS);
@@ -424,7 +534,23 @@ public class HomeView {
         txtNominal.setPromptText("Nominal (Contoh: 50000)");
 
         ComboBox<String> cmbKategori = new ComboBox<>();
-        cmbKategori.getItems().addAll("Konsumsi Makanan", "Transportasi", "Pendidikan", "Pemasukan Gaji", "Tabungan", "Kesehatan", "Hiburan", "Lainnya");
+        cmbKategori.getItems().addAll(
+            // --- Kategori Pengeluaran ---
+            "Konsumsi & Kopi", 
+            "Kost & Utilitas", 
+            "Edukasi & Buku", 
+            "Fotokopi & Print", 
+            "Transportasi & KRL", 
+            "Internet & Kuota", 
+            "Hiburan & Nongkrong", 
+            "Tabungan & Investasi",
+            // --- Kategori Pemasukan ---
+            "Uang Saku & Kiriman", 
+            "Beasiswa", 
+            "Kerja Sampingan",
+            // --- Umum ---
+            "Lainnya"
+        );
         cmbKategori.setValue("Pilih Kategori...");
         cmbKategori.setMaxWidth(Double.MAX_VALUE);
 
@@ -631,9 +757,10 @@ public class HomeView {
         paneAnggaran = new VBox(25);
         paneAnggaran.setAlignment(Pos.TOP_LEFT);
 
-        Label lblTitle = new Label("Manajemen Anggaran");
-        lblTitle.setFont(Font.font("Segoe UI", FontWeight.BOLD, 26));
-        lblTitle.setTextFill(Color.WHITE);
+        // Header Anggaran
+        Label lblTitle = new Label("Manajemen Batas Anggaran");
+        lblTitle.setFont(Font.font("Segoe UI", FontWeight.BOLD, 28));
+        lblTitle.setTextFill(Color.web("#e2e8f0"));
 
         HBox mainLayout = new HBox(25);
         VBox.setVgrow(mainLayout, Priority.ALWAYS);
@@ -648,8 +775,18 @@ public class HomeView {
         lblFormTitle.setTextFill(Color.WHITE);
 
         ComboBox<String> cmbKategori = new ComboBox<>();
-        cmbKategori.getItems().addAll("Konsumsi Makanan", "Transportasi", "Pendidikan", "Hiburan", "Lainnya");
-        cmbKategori.setValue("Konsumsi Makanan");
+        cmbKategori.getItems().addAll(
+            "Konsumsi & Kopi", 
+            "Kost & Utilitas", 
+            "Edukasi & Buku", 
+            "Fotokopi & Print", 
+            "Transportasi & KRL", 
+            "Internet & Kuota", 
+            "Hiburan & Nongkrong", 
+            "Tabungan & Investasi",
+            "Lainnya"
+        );
+        cmbKategori.setValue("Konsumsi & Kopi");
         cmbKategori.setMaxWidth(Double.MAX_VALUE);
 
         TextField txtLimit = new TextField();
@@ -1092,7 +1229,8 @@ public class HomeView {
                 String label = t.getCatatan();
                 String cat = isIn ? "Pemasukan" : ((Pengeluaran) t).getKategori().getNamaKategori();
                 String amtStr = (isIn ? "Rp " : "- Rp ") + formatNumber(t.getJumlah());
-                listRecentTransactions.getChildren().add(createTransactionRow(label, cat, t.getTanggal(), amtStr, isIn));
+                // Di ringkasan recent transactions, parameter showDeleteButton kita beri false
+                listRecentTransactions.getChildren().add(createTransactionRow(t.getIdTransaksi(), label, cat, t.getTanggal(), amtStr, isIn, false));
             }
             if (txs.length == 0) {
                 listRecentTransactions.getChildren().add(new Label("Belum ada transaksi.") {{ setTextFill(Color.web("#94a3b8")); }});
@@ -1110,7 +1248,7 @@ public class HomeView {
                 String periode = ang.getPeriode() != null ? ang.getPeriode().getRentangWaktu() : "Bulanan";
                 String detail = formatRupiah(ang.getTotalTerpakai()) + " / " + formatRupiah(ang.getBatasMaksimal()) + " (" + periode + ")";
                 listBudgetProgressBars.getChildren().add(createBudgetProgressBar(
-                    ang.getKategori().getNamaKategori(), progress, detail));
+                    ang, progress, detail, false)); // false = tidak menampilkan tombol aksi di panel ringkasan
                 if ("Mingguan".equalsIgnoreCase(periode)) {
                     totalMingguanRingkasan += ang.getBatasMaksimal();
                 } else {
@@ -1147,7 +1285,8 @@ public class HomeView {
                 String label = t.getCatatan();
                 String cat = isIn ? "Pemasukan" : ((Pengeluaran) t).getKategori().getNamaKategori();
                 String amtStr = (isIn ? "Rp " : "- Rp ") + formatNumber(t.getJumlah());
-                listAllTransactions.getChildren().add(createTransactionRow(label, cat, t.getTanggal(), amtStr, isIn));
+                // showDeleteButton = true agar user bisa menghapus transaksi dari riwayat transaksi lengkap
+                listAllTransactions.getChildren().add(createTransactionRow(t.getIdTransaksi(), label, cat, t.getTanggal(), amtStr, isIn, true));
             }
             if (txs.length == 0) {
                 listAllTransactions.getChildren().add(new Label("Belum ada transaksi.") {{ setTextFill(Color.web("#94a3b8")); }});
@@ -1171,8 +1310,9 @@ public class HomeView {
                 String detail = formatRupiah(ang.getTotalTerpakai()) + " / " + formatRupiah(ang.getBatasMaksimal())
                                + "  •  Sisa: " + formatRupiah(ang.getBatasMaksimal() - ang.getTotalTerpakai())
                                + "  (" + periodeStr + ")";
+                // showActionButtons = true agar muncul tombol Edit dan Hapus di tab manajemen Anggaran
                 listActiveBudgets.getChildren().add(createBudgetProgressBar(
-                    ang.getKategori().getNamaKategori(), progress, detail));
+                    ang, progress, detail, true));
 
                 // Akumulasi total per periode
                 if ("Mingguan".equalsIgnoreCase(periodeStr)) {
