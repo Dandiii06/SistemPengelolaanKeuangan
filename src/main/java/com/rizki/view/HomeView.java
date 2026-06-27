@@ -80,6 +80,8 @@ public class HomeView {
     private Label lblTotalSaldoValue;
     private Label lblTotalPemasukanValue;
     private Label lblTotalPengeluaranValue;
+    // Label status saldo yang ditampilkan di bawah nilai saldo (dinamis sesuai kondisi keuangan)
+    private Label lblSaldoStatus;
     private VBox listRecentTransactions;
     private VBox listBudgetProgressBars;
 
@@ -262,7 +264,11 @@ public class HomeView {
         metricContainer.setAlignment(Pos.CENTER);
 
         VBox cardSaldo = createMetricCard("TOTAL SALDO UTAMA", "Rp 0", "metric-card-primary", "Status: Aman & Terkendali");
+        // Ambil referensi label nilai saldo (index 1) dan label status (index 2) dari kartu metric.
+        // Index 0 = judul, 1 = nilai nominal, 2 = teks status di bawahnya.
         lblTotalSaldoValue = (Label) cardSaldo.getChildren().get(1);
+        // Simpan referensi ke label status agar bisa di-update secara dinamis saat refresh
+        lblSaldoStatus     = (Label) cardSaldo.getChildren().get(2);
 
         VBox cardPemasukan = createMetricCard("TOTAL PEMASUKAN", "Rp 0", "metric-card-success", "Total Pemasukan Masuk");
         lblTotalPemasukanValue = (Label) cardPemasukan.getChildren().get(1);
@@ -436,27 +442,105 @@ public class HomeView {
 
         btnSave.setOnAction(e -> {
             try {
-                String nominalStr = txtNominal.getText().trim();
-                if (nominalStr.isEmpty()) return;
-                
-                double nominal = Double.parseDouble(nominalStr);
-                String kategoriStr = cmbKategori.getValue();
-                String jenis = cmbJenis.getValue();
-                String catatan = txtCatatan.getText().trim();
-                LocalDate tgl = dpTanggal.getValue();
-                String tanggalStr = (tgl != null) ? tgl.toString() : LocalDate.now().toString();
-                String id = "TX-" + System.currentTimeMillis();
+                // ============================================================
+                // VALIDASI PER-FIELD: Setiap field wajib diperiksa satu per satu
+                // agar pesan error spesifik dan membantu user tahu field mana
+                // yang perlu diperbaiki.
+                // ============================================================
 
-                Validator validator = new Validator();
-                if (!validator.cekInputSaldo(nominal) || kategoriStr == null || kategoriStr.equals("Pilih Kategori...")) {
+                // --- VALIDASI 1: Nominal tidak boleh kosong ---
+                String nominalStr = txtNominal.getText().trim();
+                if (nominalStr.isEmpty()) {
+                    // Tampilkan peringatan khusus jika field nominal belum diisi
+                    Alert alert = new Alert(Alert.AlertType.WARNING);
+                    alert.setTitle("Field Wajib Kosong");
+                    alert.setHeaderText("⚠ Field 'Nominal' belum diisi!");
+                    alert.setContentText("Silakan masukkan jumlah nominal transaksi terlebih dahulu.");
+                    alert.showAndWait();
+                    txtNominal.requestFocus(); // Arahkan fokus ke field nominal
+                    return;
+                }
+
+                // --- VALIDASI 2: Nominal harus berupa angka yang valid ---
+                double nominal;
+                try {
+                    nominal = Double.parseDouble(nominalStr);
+                } catch (NumberFormatException ex) {
                     Alert alert = new Alert(Alert.AlertType.ERROR);
-                    alert.setTitle("Kesalahan Input");
-                    alert.setHeaderText(null);
-                    alert.setContentText("Input nominal harus lebih dari 0 dan kategori harus dipilih!");
+                    alert.setTitle("Format Angka Salah");
+                    alert.setHeaderText("⚠ Format nominal tidak valid!");
+                    alert.setContentText("Nominal harus berupa angka. Contoh: 50000\nJangan gunakan huruf atau simbol selain angka.");
+                    alert.showAndWait();
+                    txtNominal.requestFocus();
+                    return;
+                }
+
+                // --- VALIDASI 3: Nominal harus lebih dari nol ---
+                Validator validator = new Validator();
+                if (!validator.cekInputSaldo(nominal)) {
+                    Alert alert = new Alert(Alert.AlertType.WARNING);
+                    alert.setTitle("Nominal Tidak Valid");
+                    alert.setHeaderText("⚠ Nominal harus lebih dari Rp 0!");
+                    alert.setContentText("Nilai transaksi tidak boleh nol atau negatif. Masukkan jumlah yang benar.");
+                    alert.showAndWait();
+                    txtNominal.requestFocus();
+                    return;
+                }
+
+                // --- VALIDASI 4: Kategori wajib dipilih ---
+                String kategoriStr = cmbKategori.getValue();
+                if (kategoriStr == null || kategoriStr.equals("Pilih Kategori...")) {
+                    Alert alert = new Alert(Alert.AlertType.WARNING);
+                    alert.setTitle("Field Wajib Kosong");
+                    alert.setHeaderText("⚠ Field 'Kategori' belum dipilih!");
+                    alert.setContentText("Silakan pilih kategori transaksi dari daftar yang tersedia.");
                     alert.showAndWait();
                     return;
                 }
 
+                // --- VALIDASI 5: Tanggal wajib dipilih ---
+                LocalDate tgl = dpTanggal.getValue();
+                if (tgl == null) {
+                    Alert alert = new Alert(Alert.AlertType.WARNING);
+                    alert.setTitle("Field Wajib Kosong");
+                    alert.setHeaderText("⚠ Field 'Tanggal' belum dipilih!");
+                    alert.setContentText("Silakan pilih tanggal transaksi. Jika hari ini, pilih tanggal hari ini.");
+                    alert.showAndWait();
+                    return;
+                }
+
+                // --- VALIDASI 6: Cek kecukupan saldo untuk PENGELUARAN ---
+                // Saldo tidak boleh menjadi minus setelah pengeluaran dilakukan.
+                // Jika nominal pengeluaran melebihi saldo saat ini, transaksi dibatalkan.
+                String jenis = cmbJenis.getValue();
+                if ("Pengeluaran".equals(jenis)) {
+                    double saldoSaatIni = userModel.getDompet().getSaldo();
+                    if (nominal > saldoSaatIni) {
+                        // Hitung selisih kekurangan agar pesan error lebih informatif
+                        double selisih = nominal - saldoSaatIni;
+                        Alert alert = new Alert(Alert.AlertType.ERROR);
+                        alert.setTitle("Saldo Tidak Mencukupi");
+                        alert.setHeaderText("❌ Saldo tidak cukup untuk transaksi ini!");
+                        alert.setContentText(
+                            "Saldo Anda saat ini : " + formatRupiah(saldoSaatIni) + "\n" +
+                            "Nominal pengeluaran : " + formatRupiah(nominal) + "\n" +
+                            "Kekurangan          : " + formatRupiah(selisih) + "\n\n" +
+                            "Transaksi dibatalkan. Saldo tidak diizinkan menjadi minus."
+                        );
+                        alert.showAndWait();
+                        return; // Hentikan proses, jangan simpan transaksi
+                    }
+                }
+
+                // ============================================================
+                // SEMUA VALIDASI LOLOS — Lanjutkan simpan transaksi
+                // ============================================================
+                String catatan   = txtCatatan.getText().trim();
+                String tanggalStr = tgl.toString(); // LocalDate.toString() menghasilkan format "yyyy-MM-dd"
+                String id        = "TX-" + System.currentTimeMillis();
+
+                // Buat objek transaksi sesuai jenis (Pemasukan atau Pengeluaran)
+                // dan langsung perbarui saldo dompet via method polimorfik masing-masing
                 Transaksi tx;
                 if ("Pemasukan".equals(jenis)) {
                     tx = new Pemasukan(id, nominal, tanggalStr, catatan, kategoriStr);
@@ -466,15 +550,18 @@ public class HomeView {
                     ((Pengeluaran) tx).kurangiSaldoDompet(userModel.getDompet());
                 }
 
-                // Simpan transaksi di model & DB
+                // Simpan transaksi ke model in-memory dan ke database MySQL
                 userModel.getDompet().tambahTransaksi(tx);
                 dbManager.saveToStorage(tx);
                 dbManager.saveToStorage(userModel);
 
-                // Cek Notifikasi
+                // ============================================================
+                // CEK NOTIFIKASI: peringatan saldo kritis & batas anggaran
+                // ============================================================
                 Notifikasi notif = new Notifikasi();
                 notif.cekSaldoKritis(userModel.getDompet());
                 if (tx instanceof Pengeluaran) {
+                    // Hitung ulang sisa limit semua anggaran yang kategorinya cocok
                     Pengeluaran[] pengeluarans = getPengeluarans(userModel.getDompet().getDaftarTransaksi());
                     for (Anggaran ang : listAnggaran) {
                         if (ang.getKategori().getNamaKategori().equalsIgnoreCase(kategoriStr)) {
@@ -484,6 +571,7 @@ public class HomeView {
                     }
                 }
 
+                // Tampilkan pesan peringatan jika ada notifikasi yang terpicu
                 if (!notif.getPesanPeringatan().isEmpty()) {
                     Alert alert = new Alert(Alert.AlertType.WARNING);
                     alert.setTitle("Peringatan Keuangan");
@@ -492,19 +580,20 @@ public class HomeView {
                     alert.showAndWait();
                 }
 
-                // Bersihkan form
+                // Reset form ke kondisi awal setelah transaksi berhasil disimpan
                 txtNominal.clear();
                 txtCatatan.clear();
                 dpTanggal.setValue(null);
 
-                // Refresh seluruh tampilan
+                // Segarkan semua panel dashboard agar data terkini tampil
                 refreshAllData();
 
-            } catch (NumberFormatException ex) {
+            } catch (Exception ex) {
+                // Tangkap error tak terduga lainnya
                 Alert alert = new Alert(Alert.AlertType.ERROR);
-                alert.setTitle("Kesalahan Input");
+                alert.setTitle("Terjadi Kesalahan");
                 alert.setHeaderText(null);
-                alert.setContentText("Nominal harus berupa angka!");
+                alert.setContentText("Terjadi kesalahan tidak terduga: " + ex.getMessage());
                 alert.showAndWait();
             }
         });
@@ -908,6 +997,35 @@ public class HomeView {
         }
         if (lblTotalSaldoValue != null) {
             lblTotalSaldoValue.setText(formatRupiah(saldo));
+        }
+        // ============================================================
+        // STATUS SALDO DINAMIS:
+        // Teks status di bawah kartu saldo berubah fleksibel sesuai
+        // kondisi keuangan user saat ini (bukan teks statis).
+        // Ambang batas:
+        //   >= 1.000.000 => Aman & Terkendali (hijau)
+        //   >= 200.000   => Cukup, Perlu Dipantau (kuning)
+        //   >= 50.000    => Menipis, Waspadai Pengeluaran (oranye)
+        //   > 0          => Kritis! Segera Isi Saldo (merah)
+        //   == 0         => Saldo Habis (merah gelap)
+        // ============================================================
+        if (lblSaldoStatus != null) {
+            if (saldo >= 1_000_000) {
+                lblSaldoStatus.setText("✅  Status: Aman & Terkendali");
+                lblSaldoStatus.setStyle("-fx-text-fill: #10b981; -fx-font-size: 12px;");
+            } else if (saldo >= 200_000) {
+                lblSaldoStatus.setText("💛  Status: Cukup, Perlu Dipantau");
+                lblSaldoStatus.setStyle("-fx-text-fill: #f59e0b; -fx-font-size: 12px;");
+            } else if (saldo >= 50_000) {
+                lblSaldoStatus.setText("⚠  Status: Menipis, Waspadai Pengeluaran");
+                lblSaldoStatus.setStyle("-fx-text-fill: #f97316; -fx-font-size: 12px;");
+            } else if (saldo > 0) {
+                lblSaldoStatus.setText("🚨  Status: Kritis! Segera Isi Saldo");
+                lblSaldoStatus.setStyle("-fx-text-fill: #f43f5e; -fx-font-size: 12px;");
+            } else {
+                lblSaldoStatus.setText("❌  Status: Saldo Habis");
+                lblSaldoStatus.setStyle("-fx-text-fill: #dc2626; -fx-font-size: 12px; -fx-font-weight: bold;");
+            }
         }
         if (lblTotalPemasukanValue != null) {
             lblTotalPemasukanValue.setText(formatRupiah(totalIn));
