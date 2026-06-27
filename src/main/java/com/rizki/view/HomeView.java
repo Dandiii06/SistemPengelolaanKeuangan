@@ -664,46 +664,95 @@ public class HomeView {
         btnSaveBudget.getStyleClass().add("button-primary");
         btnSaveBudget.setMaxWidth(Double.MAX_VALUE);
 
+        // ============================================================
+        // VALIDASI INPUT ANGGARAN:
+        // Memastikan batas anggaran yang dimasukkan user tidak kosong,
+        // berupa angka yang valid, dan bernilai lebih dari 0.
+        // ============================================================
         btnSaveBudget.setOnAction(e -> {
             try {
+                // --- VALIDASI 1: Batas Anggaran tidak boleh kosong ---
                 String limitStr = txtLimit.getText().trim();
-                if (limitStr.isEmpty()) return;
+                if (limitStr.isEmpty()) {
+                    Alert alert = new Alert(Alert.AlertType.WARNING);
+                    alert.setTitle("Field Wajib Kosong");
+                    alert.setHeaderText("⚠ Batas anggaran belum diisi!");
+                    alert.setContentText("Silakan masukkan nominal batas maksimal anggaran terlebih dahulu.");
+                    alert.showAndWait();
+                    txtLimit.requestFocus();
+                    return;
+                }
                 
-                double limit = Double.parseDouble(limitStr);
-                String katStr = cmbKategori.getValue();
-                String perStr = cmbPeriode.getValue();
+                // --- VALIDASI 2: Batas Anggaran harus berupa angka yang valid ---
+                double limit;
+                try {
+                    limit = Double.parseDouble(limitStr);
+                } catch (NumberFormatException ex) {
+                    Alert alert = new Alert(Alert.AlertType.ERROR);
+                    alert.setTitle("Format Angka Salah");
+                    alert.setHeaderText("⚠ Nominal tidak valid!");
+                    alert.setContentText("Batas anggaran harus berupa angka. Contoh: 500000\nJangan gunakan huruf atau simbol selain angka.");
+                    alert.showAndWait();
+                    txtLimit.requestFocus();
+                    return;
+                }
 
+                // --- VALIDASI 3: Batas Anggaran harus lebih dari 0 ---
                 Validator validator = new Validator();
                 if (!validator.cekInputSaldo(limit)) {
-                    Alert alert = new Alert(Alert.AlertType.ERROR);
-                    alert.setTitle("Kesalahan Input");
-                    alert.setHeaderText(null);
-                    alert.setContentText("Batas anggaran harus lebih dari 0!");
+                    Alert alert = new Alert(Alert.AlertType.WARNING);
+                    alert.setTitle("Batas Tidak Valid");
+                    alert.setHeaderText("⚠ Batas anggaran harus lebih dari Rp 0!");
+                    alert.setContentText("Masukkan nilai anggaran yang bernilai positif.");
+                    alert.showAndWait();
+                    txtLimit.requestFocus();
+                    return;
+                }
+
+                // --- VALIDASI 4: Kategori wajib dipilih ---
+                String katStr = cmbKategori.getValue();
+                if (katStr == null || katStr.isEmpty()) {
+                    Alert alert = new Alert(Alert.AlertType.WARNING);
+                    alert.setTitle("Kategori Kosong");
+                    alert.setHeaderText("⚠ Kategori belum dipilih!");
+                    alert.setContentText("Silakan tentukan kategori pengeluaran untuk anggaran ini.");
                     alert.showAndWait();
                     return;
                 }
 
+                // --- VALIDASI 5: Periode wajib dipilih ---
+                String perStr = cmbPeriode.getValue();
+                if (perStr == null || perStr.isEmpty()) {
+                    Alert alert = new Alert(Alert.AlertType.WARNING);
+                    alert.setTitle("Periode Kosong");
+                    alert.setHeaderText("⚠ Periode belum dipilih!");
+                    alert.setContentText("Silakan tentukan periode anggaran (Mingguan/Bulanan).");
+                    alert.showAndWait();
+                    return;
+                }
+
+                // Inisialisasi model kategori dan periode berdasarkan pilihan user
                 Kategori kategoriObj = new Kategori(katStr);
                 PeriodeAnggaran periodeObj = new PeriodeAnggaran(perStr);
                 Anggaran budget = new Anggaran(limit, kategoriObj, periodeObj);
 
-                // Simpan ke DB
+                // Simpan data anggaran baru ke database
                 dbManager.saveToStorage(budget);
 
-                // Reload budgets list
+                // Muat ulang daftar anggaran aktif user dari database
                 listAnggaran = dbManager.loadBudgets(username, getPengeluarans(userModel.getDompet().getDaftarTransaksi()));
 
-                // Bersihkan form
+                // Reset field input setelah data berhasil disimpan
                 txtLimit.clear();
 
-                // Refresh data
+                // Segarkan data dan perbarui seluruh tampilan UI dashboard
                 refreshAllData();
 
-            } catch (NumberFormatException ex) {
+            } catch (Exception ex) {
                 Alert alert = new Alert(Alert.AlertType.ERROR);
-                alert.setTitle("Kesalahan Input");
+                alert.setTitle("Terjadi Kesalahan");
                 alert.setHeaderText(null);
-                alert.setContentText("Batas anggaran harus berupa angka!");
+                alert.setContentText("Gagal menyimpan anggaran: " + ex.getMessage());
                 alert.showAndWait();
             }
         });
