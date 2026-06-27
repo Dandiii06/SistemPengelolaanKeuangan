@@ -88,6 +88,8 @@ public class HomeView {
 
     // Komponen UI Anggaran
     private VBox listActiveBudgets;
+    private Label lblTotalAnggaranBulanan;
+    private Label lblTotalAnggaranMingguan;
 
     // Komponen UI Laporan Analisis
     private Label lblDailyAverage;
@@ -293,7 +295,7 @@ public class HomeView {
         // Right section: Budgets Status
         VBox budgetBox = new VBox(15);
         budgetBox.getStyleClass().add("card");
-        budgetBox.setPrefWidth(350);
+        budgetBox.setPrefWidth(370);
 
         Label lblBudgetTitle = new Label("Batas Anggaran");
         lblBudgetTitle.setFont(Font.font("Segoe UI", FontWeight.BOLD, 18));
@@ -634,9 +636,36 @@ public class HomeView {
         lblActiveTitle.setFont(Font.font("Segoe UI", FontWeight.BOLD, 16));
         lblActiveTitle.setTextFill(Color.WHITE);
 
+        // --- Kartu Total Anggaran ---
+        HBox totalAnggaranBox = new HBox(20);
+        totalAnggaranBox.setAlignment(Pos.CENTER_LEFT);
+        totalAnggaranBox.setPadding(new Insets(12, 16, 12, 16));
+        totalAnggaranBox.setStyle("-fx-background-color: #1e293b; -fx-background-radius: 10px; -fx-border-color: #334155; -fx-border-radius: 10px;");
+
+        VBox bulananBox = new VBox(4);
+        Label lblBulananTitle = new Label("📅  Total Anggaran Bulanan");
+        lblBulananTitle.setStyle("-fx-text-fill: #94a3b8; -fx-font-size: 12px;");
+        lblTotalAnggaranBulanan = new Label("Rp 0");
+        lblTotalAnggaranBulanan.setFont(Font.font("Segoe UI", FontWeight.BOLD, 18));
+        lblTotalAnggaranBulanan.setTextFill(Color.web("#6366f1"));
+        bulananBox.getChildren().addAll(lblBulananTitle, lblTotalAnggaranBulanan);
+
+        Region totalSpacer = new Region();
+        HBox.setHgrow(totalSpacer, Priority.ALWAYS);
+
+        VBox mingguanBox = new VBox(4);
+        Label lblMingguanTitle = new Label("🗓  Total Anggaran Mingguan");
+        lblMingguanTitle.setStyle("-fx-text-fill: #94a3b8; -fx-font-size: 12px;");
+        lblTotalAnggaranMingguan = new Label("Rp 0");
+        lblTotalAnggaranMingguan.setFont(Font.font("Segoe UI", FontWeight.BOLD, 18));
+        lblTotalAnggaranMingguan.setTextFill(Color.web("#10b981"));
+        mingguanBox.getChildren().addAll(lblMingguanTitle, lblTotalAnggaranMingguan);
+
+        totalAnggaranBox.getChildren().addAll(bulananBox, totalSpacer, mingguanBox);
+
         listActiveBudgets = new VBox(20);
 
-        budgetCard.getChildren().addAll(lblActiveTitle, listActiveBudgets);
+        budgetCard.getChildren().addAll(lblActiveTitle, totalAnggaranBox, listActiveBudgets);
         mainLayout.getChildren().addAll(formCard, budgetCard);
         paneAnggaran.getChildren().addAll(lblTitle, mainLayout);
     }
@@ -906,13 +935,35 @@ public class HomeView {
         if (listBudgetProgressBars != null) {
             listBudgetProgressBars.getChildren().clear();
             Pengeluaran[] pengeluarans = getPengeluarans(txs);
+            double totalBulananRingkasan = 0;
+            double totalMingguanRingkasan = 0;
             for (Anggaran ang : listAnggaran) {
                 ang.hitungSisaLimit(pengeluarans);
                 double progress = ang.getBatasMaksimal() > 0 ? (ang.getTotalTerpakai() / ang.getBatasMaksimal()) : 0;
-                String detail = formatRupiah(ang.getTotalTerpakai()) + " / " + formatRupiah(ang.getBatasMaksimal());
-                listBudgetProgressBars.getChildren().add(createBudgetProgressBar(ang.getKategori().getNamaKategori(), progress, detail));
+                String periode = ang.getPeriode() != null ? ang.getPeriode().getRentangWaktu() : "Bulanan";
+                String detail = formatRupiah(ang.getTotalTerpakai()) + " / " + formatRupiah(ang.getBatasMaksimal()) + " (" + periode + ")";
+                listBudgetProgressBars.getChildren().add(createBudgetProgressBar(
+                    ang.getKategori().getNamaKategori(), progress, detail));
+                if ("Mingguan".equalsIgnoreCase(periode)) {
+                    totalMingguanRingkasan += ang.getBatasMaksimal();
+                } else {
+                    totalBulananRingkasan += ang.getBatasMaksimal();
+                }
             }
-            if (listAnggaran.isEmpty()) {
+            if (!listAnggaran.isEmpty()) {
+                // Tampilkan ringkasan total di bawah progress bar
+                Separator sep = new Separator();
+                sep.setStyle("-fx-background-color: #334155;");
+                HBox totalRow = new HBox(10);
+                totalRow.setAlignment(Pos.CENTER_LEFT);
+                Label lblTotalBln = new Label("Total Bulanan: " + formatRupiah(totalBulananRingkasan));
+                lblTotalBln.setStyle("-fx-text-fill: #6366f1; -fx-font-size: 11px; -fx-font-weight: bold;");
+                Region s = new Region(); HBox.setHgrow(s, Priority.ALWAYS);
+                Label lblTotalMgg = new Label("Mingguan: " + formatRupiah(totalMingguanRingkasan));
+                lblTotalMgg.setStyle("-fx-text-fill: #10b981; -fx-font-size: 11px; -fx-font-weight: bold;");
+                totalRow.getChildren().addAll(lblTotalBln, s, lblTotalMgg);
+                listBudgetProgressBars.getChildren().addAll(sep, totalRow);
+            } else {
                 listBudgetProgressBars.getChildren().add(new Label("Belum ada batas anggaran.") {{ setTextFill(Color.web("#94a3b8")); }});
             }
         }
@@ -942,12 +993,36 @@ public class HomeView {
         if (listActiveBudgets != null) {
             listActiveBudgets.getChildren().clear();
             Pengeluaran[] pengeluarans = getPengeluarans(userModel.getDompet().getDaftarTransaksi());
+
+            double totalBulanan = 0;
+            double totalMingguan = 0;
+
             for (Anggaran ang : listAnggaran) {
                 ang.hitungSisaLimit(pengeluarans);
                 double progress = ang.getBatasMaksimal() > 0 ? (ang.getTotalTerpakai() / ang.getBatasMaksimal()) : 0;
-                String detail = formatRupiah(ang.getTotalTerpakai()) + " Terpakai dari Batas " + formatRupiah(ang.getBatasMaksimal()) + " (" + ang.getPeriode().getRentangWaktu() + ")";
-                listActiveBudgets.getChildren().add(createBudgetProgressBar(ang.getKategori().getNamaKategori(), progress, detail));
+                String periodeStr = ang.getPeriode() != null ? ang.getPeriode().getRentangWaktu() : "Bulanan";
+                String detail = formatRupiah(ang.getTotalTerpakai()) + " / " + formatRupiah(ang.getBatasMaksimal())
+                               + "  •  Sisa: " + formatRupiah(ang.getBatasMaksimal() - ang.getTotalTerpakai())
+                               + "  (" + periodeStr + ")";
+                listActiveBudgets.getChildren().add(createBudgetProgressBar(
+                    ang.getKategori().getNamaKategori(), progress, detail));
+
+                // Akumulasi total per periode
+                if ("Mingguan".equalsIgnoreCase(periodeStr)) {
+                    totalMingguan += ang.getBatasMaksimal();
+                } else {
+                    totalBulanan += ang.getBatasMaksimal();
+                }
             }
+
+            // Update label total anggaran di kartu ringkasan
+            if (lblTotalAnggaranBulanan != null) {
+                lblTotalAnggaranBulanan.setText(formatRupiah(totalBulanan));
+            }
+            if (lblTotalAnggaranMingguan != null) {
+                lblTotalAnggaranMingguan.setText(formatRupiah(totalMingguan));
+            }
+
             if (listAnggaran.isEmpty()) {
                 listActiveBudgets.getChildren().add(new Label("Belum ada anggaran aktif.") {{ setTextFill(Color.web("#94a3b8")); }});
             }

@@ -9,7 +9,7 @@ import com.rizki.model.Pengguna.Dompet;
 public class Pemasukan extends Transaksi{
     private String sumber;          // Sumber pemasukan (misal: Gaji, Uang Saku, dll)
     private double totalPemasukan;  // Total nominal pemasukan
-
+    
     /**
      * Constructor Pemasukan untuk membuat objek transaksi pemasukan baru.
      * Menggunakan super() untuk memanggil constructor superclass (Transaksi).

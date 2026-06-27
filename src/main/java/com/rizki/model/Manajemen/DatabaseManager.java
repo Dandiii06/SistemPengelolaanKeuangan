@@ -238,15 +238,17 @@ public class DatabaseManager implements PenyimpananData {
             String kat = (budget.getKategori() != null) ? budget.getKategori().getNamaKategori() : "Lainnya";
             String per = (budget.getPeriode() != null) ? budget.getPeriode().getRentangWaktu() : "Bulanan";
 
-            // Untuk menghindari data ganda, kita hapus budget kategori tersebut yang lama baru kita input budget yang baru
-            String deleteQuery = "DELETE FROM budgets WHERE username=? AND kategori=?";
+            // Untuk menghindari data ganda, kita hapus budget dengan kategori DAN periode yang sama baru kita input yang baru.
+            // Filter juga berdasarkan periode agar anggaran mingguan dan bulanan di kategori yang sama tidak saling menimpa.
+            String deleteQuery = "DELETE FROM budgets WHERE username=? AND kategori=? AND periode=?";
             String insertQuery = "INSERT INTO budgets (username, kategori, batas_maksimal, periode, total_terpakai) VALUES (?, ?, ?, ?, ?)";
             
             try (Connection conn = DatabaseHelper.getConnection()) {
-                // 1. Eksekusi DELETE budget kategori yang lama
+                // 1. Eksekusi DELETE budget dengan kategori dan periode yang sama (lebih presisi)
                 try (PreparedStatement delStmt = conn.prepareStatement(deleteQuery)) {
                     delStmt.setString(1, currentUsername); // ? ke-1: Username aktif
                     delStmt.setString(2, kat);             // ? ke-2: Kategori anggaran
+                    delStmt.setString(3, per);             // ? ke-3: Periode anggaran (Mingguan/Bulanan)
                     delStmt.executeUpdate();
                 }
                 
