@@ -119,9 +119,49 @@ public class RegisterView {
         VBox colPassword = new VBox(5);
         Label lblPass = new Label("Password");
         lblPass.getStyleClass().add("form-label");
+        
+        // Buat field password tersembunyi dan field teks biasa untuk toggle lihat password
         txtPassword = new PasswordField();
         txtPassword.setPromptText("Masukkan password");
-        colPassword.getChildren().addAll(lblPass, txtPassword);
+        TextField txtPasswordShow = new TextField();
+        txtPasswordShow.setPromptText("Masukkan password");
+        txtPasswordShow.setManaged(false);
+        txtPasswordShow.setVisible(false);
+        
+        // Buat Tombol Mata untuk toggling
+        Button btnTogglePass = new Button("👁");
+        btnTogglePass.setStyle("-fx-background-color: transparent; -fx-text-fill: #94a3b8; -fx-cursor: hand; -fx-font-size: 14px; -fx-padding: 0 8 0 8;");
+        
+        // Posisikan tombol mata di ujung kanan field password
+        javafx.scene.layout.StackPane passPane = new javafx.scene.layout.StackPane();
+        passPane.setAlignment(Pos.CENTER_RIGHT);
+        passPane.getChildren().addAll(txtPassword, txtPasswordShow, btnTogglePass);
+        
+        // Logika Toggling Tampilkan/Sembunyikan password
+        btnTogglePass.setOnAction(ev -> {
+            if (txtPassword.isVisible()) {
+                txtPasswordShow.setText(txtPassword.getText());
+                txtPasswordShow.setVisible(true);
+                txtPasswordShow.setManaged(true);
+                txtPassword.setVisible(false);
+                txtPassword.setManaged(false);
+                btnTogglePass.setText("🔒");
+                btnTogglePass.setStyle("-fx-background-color: transparent; -fx-text-fill: #6366f1; -fx-cursor: hand; -fx-font-size: 14px; -fx-padding: 0 8 0 8;");
+            } else {
+                txtPassword.setText(txtPasswordShow.getText());
+                txtPassword.setVisible(true);
+                txtPassword.setManaged(true);
+                txtPasswordShow.setVisible(false);
+                txtPasswordShow.setManaged(false);
+                btnTogglePass.setText("👁");
+                btnTogglePass.setStyle("-fx-background-color: transparent; -fx-text-fill: #94a3b8; -fx-cursor: hand; -fx-font-size: 14px; -fx-padding: 0 8 0 8;");
+            }
+        });
+
+        // Sinkronisasi teks agar ketika user mengetik di salah satu field, yang lain juga ikut terupdate
+        txtPassword.textProperty().bindBidirectional(txtPasswordShow.textProperty());
+        
+        colPassword.getChildren().addAll(lblPass, passPane);
         
         VBox colSaldo = createInputField("Saldo Awal (Rp)", txtSaldoAwal = new TextField(), "Contoh: 50000");
         HBox.setHgrow(colPassword, Priority.ALWAYS);
@@ -171,7 +211,7 @@ public class RegisterView {
             String nim = txtNim.getText().trim();
             String email = txtEmail.getText().trim();
             String username = txtUsername.getText().trim();
-            String password = txtPassword.getText().trim();
+            String password = txtPassword.getText();
             String saldoStr = txtSaldoAwal.getText().trim();
 
             // 1. Validasi apakah semua input wajib telah terisi
@@ -179,40 +219,67 @@ public class RegisterView {
                 lblError.setText("Semua field harus diisi!");
                 lblError.setVisible(true);
                 lblSuccess.setVisible(false);
-            } else {
-                try {
-                    // 2. Validasi format angka untuk saldo awal
-                    double saldo = Double.parseDouble(saldoStr);
-            
-                    // 3. Enkripsi (Hashing) password menggunakan BCrypt untuk keamanan database
-                    String hashedPassword = org.mindrot.jbcrypt.BCrypt.hashpw(password, org.mindrot.jbcrypt.BCrypt.gensalt());
-            
-                    // 4. Instansiasi objek model (Dompet, Profile, User) secara berjenjang (Komposisi)
-                    Dompet dompet = new Dompet(saldo);
-                    Profile profile = new Profile(name, hashedPassword, nim, email);
-                    User user = new User(username, hashedPassword, profile, dompet);
-            
-                    // 5. Menyimpan data akun pengguna baru ke MySQL melalui DatabaseManager
-                    DatabaseManager dbManager = new DatabaseManager("");
-                    boolean isSaved = dbManager.saveToStorage(user);
-            
-                    if (isSaved) {
-                        lblError.setVisible(false);
-                        // Jika registrasi berhasil, navigasikan langsung ke halaman dashboard (HomeView)
-                        ViewManager.showHomeView(username);
-                    } else {
-                        // Jika registrasi gagal (misal karena username/NIM/email sudah terdaftar), tampilkan pesan error
-                        lblError.setText("Pendaftaran gagal! Username/NIM/Email mungkin sudah terdaftar.");
-                        lblError.setVisible(true);
-                        lblSuccess.setVisible(false);
-                    }
-            
-                } catch (NumberFormatException ex) {
-                    // Jika input saldo awal tidak valid (bukan angka), tampilkan pesan error yang sesuai
-                    lblError.setText("Saldo awal harus berupa angka!");
+                return;
+            }
+
+            // 2. Validasi NIM tidak boleh ada huruf (Hanya boleh angka saja)
+            if (!nim.matches("\\d+")) {
+                lblError.setText("NIM tidak valid! Hanya boleh berisi angka.");
+                lblError.setVisible(true);
+                lblSuccess.setVisible(false);
+                txtNim.requestFocus();
+                return;
+            }
+
+            // 3. Validasi Email wajib menggunakan domain @gmail.com
+            if (!email.toLowerCase().endsWith("@gmail.com")) {
+                lblError.setText("Email tidak valid! Harus berakhiran '@gmail.com'.");
+                lblError.setVisible(true);
+                lblSuccess.setVisible(false);
+                txtEmail.requestFocus();
+                return;
+            }
+
+            try {
+                // 4. Validasi format angka untuk saldo awal
+                double saldo = Double.parseDouble(saldoStr);
+                if (saldo < 0) {
+                    lblError.setText("Saldo awal tidak boleh negatif!");
+                    lblError.setVisible(true);
+                    lblSuccess.setVisible(false);
+                    txtSaldoAwal.requestFocus();
+                    return;
+                }
+        
+                // 5. Enkripsi (Hashing) password menggunakan BCrypt untuk keamanan database
+                String hashedPassword = org.mindrot.jbcrypt.BCrypt.hashpw(password, org.mindrot.jbcrypt.BCrypt.gensalt());
+        
+                // 6. Instansiasi objek model (Dompet, Profile, User) secara berjenjang (Komposisi)
+                Dompet dompet = new Dompet(saldo);
+                Profile profile = new Profile(name, hashedPassword, nim, email);
+                User user = new User(username, hashedPassword, profile, dompet);
+        
+                // 7. Menyimpan data akun pengguna baru ke MySQL melalui DatabaseManager
+                DatabaseManager dbManager = new DatabaseManager("");
+                boolean isSaved = dbManager.saveToStorage(user);
+        
+                if (isSaved) {
+                    lblError.setVisible(false);
+                    // Jika registrasi berhasil, navigasikan langsung ke halaman dashboard (HomeView)
+                    ViewManager.showHomeView(username);
+                } else {
+                    // Jika registrasi gagal (misal karena username/NIM/email sudah terdaftar), tampilkan pesan error
+                    lblError.setText("Pendaftaran gagal! Username/NIM/Email mungkin sudah terdaftar.");
                     lblError.setVisible(true);
                     lblSuccess.setVisible(false);
                 }
+        
+            } catch (NumberFormatException ex) {
+                // Jika input saldo awal tidak valid (bukan angka), tampilkan pesan error yang sesuai
+                lblError.setText("Saldo awal harus berupa angka!");
+                lblError.setVisible(true);
+                lblSuccess.setVisible(false);
+                txtSaldoAwal.requestFocus();
             }
         });
 

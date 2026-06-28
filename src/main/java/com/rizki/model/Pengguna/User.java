@@ -58,7 +58,7 @@ public class User {
     /**
      * Metode autentikasi() memverifikasi apakah input username & password yang dimasukkan
      * sesuai dengan data akun pengguna ini.
-     * Menggunakan pustaka BCrypt untuk mencocokkan password yang di-hash (keamanan data).
+     * Menggunakan BCrypt untuk mencocokkan password yang di-hash (keamanan data).
      * Jika terjadi kegagalan atau password belum ter-hash (plaintext), akan beralih ke perbandingan String biasa (equals).
      */
     public boolean autentikasi(String username, String password) {

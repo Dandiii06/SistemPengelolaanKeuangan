@@ -97,8 +97,47 @@ public class LoginView {
 
         Label lblPassword = new Label("Password");
         lblPassword.getStyleClass().add("form-label");
+        
+        // Buat field password tersembunyi dan field teks biasa untuk toggle lihat password
         txtPassword = new PasswordField();
         txtPassword.setPromptText("Masukkan password Anda");
+        TextField txtPasswordShow = new TextField();
+        txtPasswordShow.setPromptText("Masukkan password Anda");
+        txtPasswordShow.setManaged(false);
+        txtPasswordShow.setVisible(false);
+        
+        // Buat Tombol Mata untuk toggling
+        Button btnTogglePass = new Button("👁");
+        btnTogglePass.setStyle("-fx-background-color: transparent; -fx-text-fill: #94a3b8; -fx-cursor: hand; -fx-font-size: 14px; -fx-padding: 0 8 0 8;");
+        
+        // Posisikan tombol mata di ujung kanan field password
+        javafx.scene.layout.StackPane passPane = new javafx.scene.layout.StackPane();
+        passPane.setAlignment(Pos.CENTER_RIGHT);
+        passPane.getChildren().addAll(txtPassword, txtPasswordShow, btnTogglePass);
+        
+        // Logika Toggling Tampilkan/Sembunyikan password
+        btnTogglePass.setOnAction(ev -> {
+            if (txtPassword.isVisible()) {
+                txtPasswordShow.setText(txtPassword.getText());
+                txtPasswordShow.setVisible(true);
+                txtPasswordShow.setManaged(true);
+                txtPassword.setVisible(false);
+                txtPassword.setManaged(false);
+                btnTogglePass.setText("🔒");
+                btnTogglePass.setStyle("-fx-background-color: transparent; -fx-text-fill: #6366f1; -fx-cursor: hand; -fx-font-size: 14px; -fx-padding: 0 8 0 8;");
+            } else {
+                txtPassword.setText(txtPasswordShow.getText());
+                txtPassword.setVisible(true);
+                txtPassword.setManaged(true);
+                txtPasswordShow.setVisible(false);
+                txtPasswordShow.setManaged(false);
+                btnTogglePass.setText("👁");
+                btnTogglePass.setStyle("-fx-background-color: transparent; -fx-text-fill: #94a3b8; -fx-cursor: hand; -fx-font-size: 14px; -fx-padding: 0 8 0 8;");
+            }
+        });
+
+        // Sinkronisasi teks agar ketika user mengetik di salah satu field, yang lain juga ikut terupdate
+        txtPassword.textProperty().bindBidirectional(txtPasswordShow.textProperty());
 
         lblError = new Label("");
         lblError.getStyleClass().add("error-label");
@@ -123,7 +162,7 @@ public class LoginView {
         formCard.getChildren().addAll(
             lblTitle, lblSubtitle,
             lblUsername, txtUsername,
-            lblPassword, txtPassword,
+            lblPassword, passPane,
             lblError,
             btnLogin, registerContainer
         );
