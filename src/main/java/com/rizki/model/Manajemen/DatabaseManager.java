@@ -377,7 +377,7 @@ public class DatabaseManager implements PenyimpananData {
     public boolean deleteBudget(String username, String kategori, String periode) {
         String query = "DELETE FROM budgets WHERE username = ? AND kategori = ? AND periode = ?";
         try (Connection conn = DatabaseHelper.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(query)) {
+            PreparedStatement stmt = conn.prepareStatement(query)) {
             stmt.setString(1, username);
             stmt.setString(2, kategori);
             stmt.setString(3, periode);
@@ -396,7 +396,7 @@ public class DatabaseManager implements PenyimpananData {
     public boolean deleteTransaction(String idTransaksi) {
         String query = "DELETE FROM transactions WHERE id = ?";
         try (Connection conn = DatabaseHelper.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(query)) {
+            PreparedStatement stmt = conn.prepareStatement(query)) {
             stmt.setString(1, idTransaksi);
             stmt.executeUpdate();
             return true;

@@ -18,6 +18,8 @@ import com.rizki.model.Pengguna.User;
 import com.rizki.model.keuangan.Pemasukan;
 import com.rizki.model.keuangan.Pengeluaran;
 import com.rizki.model.keuangan.Transaksi;
+import com.rizki.model.Laporan.LaporanBulanan;
+import com.rizki.model.Laporan.LaporanMingguan;
 
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -98,6 +100,9 @@ public class HomeView {
     private Label lblMaxCategory;
     private Label lblSavingsRatio;
     private VBox listLaporanDistribution;
+    // Label metadata dari objek LaporanMingguan dan LaporanBulanan
+    private Label lblInfoLaporanMingguan;
+    private Label lblInfoLaporanBulanan;
 
     // Komponen UI Profil Akun
     private Label lblAvatarName;
@@ -956,6 +961,28 @@ public class HomeView {
         lblTitle.setFont(Font.font("Segoe UI", FontWeight.BOLD, 26));
         lblTitle.setTextFill(Color.WHITE);
 
+        // ============================================================
+        // INFO CARD: Menampilkan metadata dari objek LaporanMingguan
+        // dan LaporanBulanan (getTglCetak, getTotalNominal, getMingguKe,
+        // getBulan) - nilai akan diisi oleh refreshLaporanData()
+        // ============================================================
+        VBox infoCard = new VBox(10);
+        infoCard.getStyleClass().add("card");
+
+        Label lblInfoTitle = new Label("📋  Informasi Laporan Periode");
+        lblInfoTitle.setFont(Font.font("Segoe UI", FontWeight.BOLD, 14));
+        lblInfoTitle.setTextFill(Color.WHITE);
+
+        // Label untuk metadata LaporanMingguan (diisi oleh generateStatistik + getMingguKe + getTglCetak)
+        lblInfoLaporanMingguan = new Label("Laporan Mingguan - memuat...");
+        lblInfoLaporanMingguan.setStyle("-fx-text-fill: #10b981; -fx-font-size: 12px;");
+
+        // Label untuk metadata LaporanBulanan (diisi oleh generateStatistik + getBulan + getTglCetak)
+        lblInfoLaporanBulanan = new Label("Laporan Bulanan - memuat...");
+        lblInfoLaporanBulanan.setStyle("-fx-text-fill: #6366f1; -fx-font-size: 12px;");
+
+        infoCard.getChildren().addAll(lblInfoTitle, lblInfoLaporanMingguan, lblInfoLaporanBulanan);
+
         HBox statsGrid = new HBox(20);
         
         VBox stat1 = createStatCard("Rata-rata Pengeluaran Harian", "Rp 0");
@@ -976,14 +1003,15 @@ public class HomeView {
         chartCard.getStyleClass().add("card");
         VBox.setVgrow(chartCard, Priority.ALWAYS);
 
-        Label lblBreakdownTitle = new Label("Analisis Distribusi Pengeluaran");
+        Label lblBreakdownTitle = new Label("Analisis Distribusi Pengeluaran (Bulan Ini)");
         lblBreakdownTitle.setFont(Font.font("Segoe UI", FontWeight.BOLD, 16));
         lblBreakdownTitle.setTextFill(Color.WHITE);
 
         listLaporanDistribution = new VBox(15);
 
         chartCard.getChildren().addAll(lblBreakdownTitle, listLaporanDistribution);
-        paneLaporan.getChildren().addAll(lblTitle, statsGrid, chartCard);
+        // Tambahkan infoCard di antara judul dan statsGrid
+        paneLaporan.getChildren().addAll(lblTitle, infoCard, statsGrid, chartCard);
     }
 
     private VBox createStatCard(String title, String value) {
@@ -1170,11 +1198,12 @@ public class HomeView {
         double totalOut = 0;
         Transaksi[] txs = userModel.getDompet().getDaftarTransaksi();
         
+        // Gunakan getTotalPemasukan() dan getTotalPengeluaran() dari masing-masing subclass
         for (Transaksi t : txs) {
             if (t instanceof Pemasukan) {
-                totalIn += t.getJumlah();
+                totalIn += ((Pemasukan) t).getTotalPemasukan();
             } else if (t instanceof Pengeluaran) {
-                totalOut += t.getJumlah();
+                totalOut += ((Pengeluaran) t).getTotalPengeluaran();
             }
         }
         
@@ -1282,12 +1311,31 @@ public class HomeView {
             for (int i = txs.length - 1; i >= 0; i--) {
                 Transaksi t = txs[i];
                 boolean isIn = t instanceof Pemasukan;
-                String label = t.getCatatan();
+
+                // Label pendek untuk tampilan: "Pemasukan dari [sumber]: [catatan]"
+                // atau "Pengeluaran untuk [kategori]: [catatan]"
+                String label;
+                if (isIn) {
+                    Pemasukan p = (Pemasukan) t;
+                    label = "Pemasukan dari " + p.getSumber() + ": " + p.getCatatan();
+                } else {
+                    Pengeluaran p = (Pengeluaran) t;
+                    String katName = p.getKategori() != null ? p.getKategori().getNamaKategori() : "Lainnya";
+                    label = "Pengeluaran untuk " + katName + ": " + p.getCatatan();
+                }
+
                 String cat = isIn ? "Pemasukan" : ((Pengeluaran) t).getKategori().getNamaKategori();
                 String amtStr = (isIn ? "Rp " : "- Rp ") + formatNumber(t.getJumlah());
-                // showDeleteButton = true agar user bisa menghapus transaksi dari riwayat transaksi lengkap
-                listAllTransactions.getChildren().add(createTransactionRow(t.getIdTransaksi(), label, cat, t.getTanggal(), amtStr, isIn, true));
+
+                // Buat baris transaksi, lalu pasang getDetail() (Polimorfisme) sebagai tooltip hover
+                javafx.scene.layout.HBox row = createTransactionRow(t.getIdTransaksi(), label, cat, t.getTanggal(), amtStr, isIn, true);
+                javafx.scene.control.Tooltip tooltip = new javafx.scene.control.Tooltip(t.getDetail());
+                tooltip.setWrapText(true);
+                tooltip.setMaxWidth(400);
+                javafx.scene.control.Tooltip.install(row, tooltip);
+                listAllTransactions.getChildren().add(row);
             }
+
             if (txs.length == 0) {
                 listAllTransactions.getChildren().add(new Label("Belum ada transaksi.") {{ setTextFill(Color.web("#94a3b8")); }});
             }
@@ -1308,8 +1356,8 @@ public class HomeView {
                 double progress = ang.getBatasMaksimal() > 0 ? (ang.getTotalTerpakai() / ang.getBatasMaksimal()) : 0;
                 String periodeStr = ang.getPeriode() != null ? ang.getPeriode().getRentangWaktu() : "Bulanan";
                 String detail = formatRupiah(ang.getTotalTerpakai()) + " / " + formatRupiah(ang.getBatasMaksimal())
-                               + "  •  Sisa: " + formatRupiah(ang.getBatasMaksimal() - ang.getTotalTerpakai())
-                               + "  (" + periodeStr + ")";
+                            + "  •  Sisa: " + formatRupiah(ang.getBatasMaksimal() - ang.getTotalTerpakai())
+                            + "  (" + periodeStr + ")";
                 // showActionButtons = true agar muncul tombol Edit dan Hapus di tab manajemen Anggaran
                 listActiveBudgets.getChildren().add(createBudgetProgressBar(
                     ang, progress, detail, true));
@@ -1338,18 +1386,78 @@ public class HomeView {
 
     private void refreshLaporanData() {
         if (userModel == null) return;
-        double totalIn = 0;
+
+        // ================================================================
+        // INTEGRASI: Instansiasi LaporanMingguan dan LaporanBulanan
+        // dari package model.Laporan untuk digunakan secara nyata.
+        // ================================================================
+        String todayStr = LocalDate.now().toString();
+
+        // Hitung minggu ke-berapa dalam bulan ini (1-4)
+        int mingguKe = (int) Math.ceil(LocalDate.now().getDayOfMonth() / 7.0);
+
+        // Nama bulan dalam bahasa Indonesia
+        String[] namaBulanArr = {"Januari","Februari","Maret","April","Mei","Juni",
+                                 "Juli","Agustus","September","Oktober","November","Desember"};
+        String namaBulanIni = namaBulanArr[LocalDate.now().getMonthValue() - 1];
+
+        // Buat objek Laporan sesuai model class diagram
+        LaporanMingguan laporanMingguan = new LaporanMingguan(todayStr, mingguKe);
+        LaporanBulanan  laporanBulanan  = new LaporanBulanan(todayStr, namaBulanIni);
+
+        // Panggil generateStatistik(Dompet) -> mengisi totalNominal dengan saldo dompet terkini
+        laporanMingguan.generateStatistik(userModel.getDompet());
+        laporanBulanan.generateStatistik(userModel.getDompet());
+
+        // Hitung rentang tanggal untuk filter periode MINGGUAN (Senin s/d Minggu pekan ini)
+        LocalDate senin    = LocalDate.now().with(java.time.DayOfWeek.MONDAY);
+        LocalDate minggu   = LocalDate.now().with(java.time.DayOfWeek.SUNDAY);
+
+        // Hitung rentang tanggal untuk filter periode BULANAN (1 s/d akhir bulan ini)
+        LocalDate awalBulan  = LocalDate.now().withDayOfMonth(1);
+        LocalDate akhirBulan = LocalDate.now().withDayOfMonth(LocalDate.now().lengthOfMonth());
+
+        Transaksi[] allTxs = userModel.getDompet().getDaftarTransaksi();
+
+        // Gunakan filterDataByDate() dari masing-masing objek Laporan
+        // untuk mendapatkan subset transaksi yang relevan per periode
+        Transaksi[] txsMingguan = laporanMingguan.filterDataByDate(allTxs, senin.toString(), minggu.toString());
+        Transaksi[] txsBulanan  = laporanBulanan.filterDataByDate(allTxs, awalBulan.toString(), akhirBulan.toString());
+
+        // Update label metadata laporan di info card UI
+        // Menggunakan: getTglCetak(), getTotalNominal(), getMingguKe(), getBulan()
+        if (lblInfoLaporanMingguan != null) {
+            lblInfoLaporanMingguan.setText(
+                "📅  Minggu ke-" + laporanMingguan.getMingguKe()
+                + "  •  Transaksi minggu ini: " + txsMingguan.length
+                + "  •  Dicetak: " + laporanMingguan.getTglCetak()
+                + "  •  Total Saldo: " + formatRupiah(laporanMingguan.getTotalNominal())
+            );
+        }
+        if (lblInfoLaporanBulanan != null) {
+            lblInfoLaporanBulanan.setText(
+                "🗓  Bulan " + laporanBulanan.getBulan()
+                + "  •  Transaksi bulan ini: " + txsBulanan.length
+                + "  •  Dicetak: " + laporanBulanan.getTglCetak()
+                + "  •  Total Saldo: " + formatRupiah(laporanBulanan.getTotalNominal())
+            );
+        }
+
+        // ================================================================
+        // ANALISIS STATISTIK: Gunakan data BULANAN (txsBulanan) yang sudah
+        // difilter oleh filterDataByDate() dari LaporanBulanan.
+        // Gunakan getTotalPemasukan() dan getTotalPengeluaran() dari subclass.
+        // ================================================================
+        double totalIn  = 0;
         double totalOut = 0;
-        Transaksi[] txs = userModel.getDompet().getDaftarTransaksi();
-        
-        Map<String, Double> catMap = new HashMap<>();
-        Set<String> uniqueDays = new HashSet<>();
-        
-        for (Transaksi t : txs) {
+        Map<String, Double> catMap    = new HashMap<>();
+        Set<String>       uniqueDays = new HashSet<>();
+
+        for (Transaksi t : txsBulanan) {
             if (t instanceof Pemasukan) {
-                totalIn += t.getJumlah();
+                totalIn += ((Pemasukan) t).getTotalPemasukan();
             } else if (t instanceof Pengeluaran) {
-                double amt = t.getJumlah();
+                double amt = ((Pengeluaran) t).getTotalPengeluaran();
                 totalOut += amt;
                 Kategori cat = ((Pengeluaran) t).getKategori();
                 String catName = cat != null ? cat.getNamaKategori() : "Lainnya";
@@ -1357,12 +1465,12 @@ public class HomeView {
                 uniqueDays.add(t.getTanggal());
             }
         }
-        
+
         double dailyAvg = uniqueDays.size() > 0 ? (totalOut / uniqueDays.size()) : 0;
         if (lblDailyAverage != null) {
             lblDailyAverage.setText(formatRupiah(dailyAvg));
         }
-        
+
         String maxCat = "-";
         double maxAmt = 0;
         for (Map.Entry<String, Double> entry : catMap.entrySet()) {
@@ -1374,24 +1482,28 @@ public class HomeView {
         if (lblMaxCategory != null) {
             lblMaxCategory.setText(maxCat);
         }
-        
+
         double savingsRatio = totalIn > 0 ? ((totalIn - totalOut) / totalIn * 100) : 0;
         if (lblSavingsRatio != null) {
             lblSavingsRatio.setText(String.format("%.2f %%", savingsRatio));
         }
-        
+
         if (listLaporanDistribution != null) {
             listLaporanDistribution.getChildren().clear();
             for (Map.Entry<String, Double> entry : catMap.entrySet()) {
                 double catAmt = entry.getValue();
-                double ratio = totalOut > 0 ? (catAmt / totalOut) : 0;
+                double ratio  = totalOut > 0 ? (catAmt / totalOut) : 0;
                 String pctStr = String.format("%.1f %%", ratio * 100);
                 listLaporanDistribution.getChildren().add(
                     createDistributionRow("📁  " + entry.getKey(), formatRupiah(catAmt), pctStr, ratio, Color.web("#f43f5e"))
                 );
             }
             if (catMap.isEmpty()) {
-                listLaporanDistribution.getChildren().add(new Label("Belum ada pengeluaran terdaftar.") {{ setTextFill(Color.web("#94a3b8")); }});
+                listLaporanDistribution.getChildren().add(
+                    new Label("Belum ada pengeluaran bulan " + laporanBulanan.getBulan() + ".") {{
+                        setTextFill(Color.web("#94a3b8"));
+                    }}
+                );
             }
         }
 
