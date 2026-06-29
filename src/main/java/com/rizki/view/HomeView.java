@@ -11,6 +11,8 @@ import java.util.Set;
 import com.rizki.model.Anggaran.Anggaran;
 import com.rizki.model.Anggaran.Kategori;
 import com.rizki.model.Anggaran.PeriodeAnggaran;
+import com.rizki.model.Laporan.LaporanBulanan;
+import com.rizki.model.Laporan.LaporanMingguan;
 import com.rizki.model.Manajemen.DatabaseManager;
 import com.rizki.model.Manajemen.Notifikasi;
 import com.rizki.model.Manajemen.Validator;
@@ -18,8 +20,6 @@ import com.rizki.model.Pengguna.User;
 import com.rizki.model.keuangan.Pemasukan;
 import com.rizki.model.keuangan.Pengeluaran;
 import com.rizki.model.keuangan.Transaksi;
-import com.rizki.model.Laporan.LaporanBulanan;
-import com.rizki.model.Laporan.LaporanMingguan;
 
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -111,12 +111,15 @@ public class HomeView {
 
     /**
      * Constructor HomeView.
-     * Mengambil data user ter-update dari database, memuat anggaran aktif,
-     * serta membuat komponen-komponen UI awal (createView) dan menyegarkan data (refreshAllData).
+     * 1. Mengambil data user ter-update dari database menggunakan dbManager.loadUser()
+     * 2. Memuat anggaran aktif dari database menggunakan dbManager.loadBudgets()
+     * 3. Membuat komponen-komponen UI awal (createView) dan menyegarkan data (refreshAllData).
      */
     public HomeView(String username) {
         this.username = username;
+        // Inisialisasi DatabaseManager untuk berinteraksi dengan database MySQL
         this.dbManager = new DatabaseManager("");
+        // Memuat objek User lengkap beserta profil dan saldo/transaksi dompetnya
         this.userModel = dbManager.loadUser(username);
         // Memuat anggaran dari database dan menghitung sisa anggaran rill
         if (this.userModel != null) {
@@ -124,9 +127,10 @@ public class HomeView {
         } else {
             this.listAnggaran = new ArrayList<>();
         }
-        createView();         // Merakit layout & komponen
-        refreshAllData();     // Membaca & menyinkronkan data model ke UI
+        createView();         // Merakit layout & komponen JavaFX
+        refreshAllData();     // Membaca & menyinkronkan data model ke UI (Mengisi teks saldo, dll.)
     }
+
 
     private void createView() {
         root = new BorderPane();
@@ -670,39 +674,46 @@ public class HomeView {
                 String tanggalStr = tgl.toString(); // LocalDate.toString() menghasilkan format "yyyy-MM-dd"
                 String id        = "TX-" + System.currentTimeMillis();
 
-                // Buat objek transaksi sesuai jenis (Pemasukan atau Pengeluaran)
+                // 1. Polimorfisme: Buat objek transaksi sesuai jenis (Pemasukan atau Pengeluaran)
                 // dan langsung perbarui saldo dompet via method polimorfik masing-masing
                 Transaksi tx;
                 if ("Pemasukan".equals(jenis)) {
                     tx = new Pemasukan(id, nominal, tanggalStr, catatan, kategoriStr);
+                    // Polimorfisme: Memanggil tambahSaldoDompet untuk menambah saldo utama
                     ((Pemasukan) tx).tambahSaldoDompet(userModel.getDompet());
                 } else {
                     tx = new Pengeluaran(id, nominal, tanggalStr, catatan, new Kategori(kategoriStr));
+                    // Polimorfisme: Memanggil kurangiSaldoDompet untuk mengurangi saldo utama
                     ((Pengeluaran) tx).kurangiSaldoDompet(userModel.getDompet());
                 }
 
-                // Simpan transaksi ke model in-memory dan ke database MySQL
+                // 2. Hubungkan ke Model Dompet (In-Memory): Tambahkan transaksi ke list transaksi dompet
                 userModel.getDompet().tambahTransaksi(tx);
+                
+                // 3. Hubungkan ke Database (Penyimpanan): Simpan transaksi baru dan update saldo user terbaru ke MySQL
                 dbManager.saveToStorage(tx);
                 dbManager.saveToStorage(userModel);
 
                 // ============================================================
-                // CEK NOTIFIKASI: peringatan saldo kritis & batas anggaran
+                // CEK NOTIFIKASI: Menggunakan class Notifikasi dari model.Manajemen
                 // ============================================================
                 Notifikasi notif = new Notifikasi();
+                // Hubungkan ke model Dompet untuk memeriksa apakah saldo menjadi kritis (< Rp 50.000)
                 notif.cekSaldoKritis(userModel.getDompet());
                 if (tx instanceof Pengeluaran) {
                     // Hitung ulang sisa limit semua anggaran yang kategorinya cocok
                     Pengeluaran[] pengeluarans = getPengeluarans(userModel.getDompet().getDaftarTransaksi());
                     for (Anggaran ang : listAnggaran) {
                         if (ang.getKategori().getNamaKategori().equalsIgnoreCase(kategoriStr)) {
+                            // Hubungkan ke model Anggaran untuk menghitung sisa limit setelah pengeluaran baru
                             ang.hitungSisaLimit(pengeluarans);
+                            // Hubungkan ke Notifikasi untuk mengecek ambang batas anggaran (< 20% sisa)
                             notif.cekAmbangBatas(ang);
                         }
                     }
                 }
 
-                // Tampilkan pesan peringatan jika ada notifikasi yang terpicu
+                // Tampilkan pesan peringatan jika ada kriteria kritis/ambang batas terpicu
                 if (!notif.getPesanPeringatan().isEmpty()) {
                     Alert alert = new Alert(Alert.AlertType.WARNING);
                     alert.setTitle("Peringatan Keuangan");
@@ -710,6 +721,7 @@ public class HomeView {
                     alert.setContentText(notif.getPesanPeringatan());
                     alert.showAndWait();
                 }
+
 
                 // Reset form ke kondisi awal setelah transaksi berhasil disimpan
                 txtNominal.clear();
@@ -1193,12 +1205,14 @@ public class HomeView {
      */
     private void refreshRingkasanData() {
         if (userModel == null) return;
+        // Hubungkan ke model Dompet untuk mengambil saldo terkini
         double saldo = userModel.getDompet().getSaldo();
         double totalIn = 0;
         double totalOut = 0;
+        // Mengambil array seluruh riwayat transaksi dari objek Dompet
         Transaksi[] txs = userModel.getDompet().getDaftarTransaksi();
         
-        // Gunakan getTotalPemasukan() dan getTotalPengeluaran() dari masing-masing subclass
+        // Iterasi semua transaksi untuk menghitung total pemasukan dan pengeluaran secara terpisah
         for (Transaksi t : txs) {
             if (t instanceof Pemasukan) {
                 totalIn += ((Pemasukan) t).getTotalPemasukan();
@@ -1210,20 +1224,13 @@ public class HomeView {
         if (lblGreeting != null) {
             lblGreeting.setText("Halo, " + userModel.getProfil().getNama() + "!");
         }
+        
+        // KONEKSI VIEW-MODEL: Baris ini menampilkan nominal SALDO UTAMA secara dinamis ke layar JavaFX
         if (lblTotalSaldoValue != null) {
             lblTotalSaldoValue.setText(formatRupiah(saldo));
         }
-        // ============================================================
-        // STATUS SALDO DINAMIS:
-        // Teks status di bawah kartu saldo berubah fleksibel sesuai
-        // kondisi keuangan user saat ini (bukan teks statis).
-        // Ambang batas:
-        //   >= 1.000.000 => Aman & Terkendali (hijau)
-        //   >= 200.000   => Cukup, Perlu Dipantau (kuning)
-        //   >= 50.000    => Menipis, Waspadai Pengeluaran (oranye)
-        //   > 0          => Kritis! Segera Isi Saldo (merah)
-        //   == 0         => Saldo Habis (merah gelap)
-        // ============================================================
+        
+        // KONEKSI VIEW-MODEL: Status Saldo Dinamis di bawah nominal saldo utama
         if (lblSaldoStatus != null) {
             if (saldo >= 1_000_000) {
                 lblSaldoStatus.setText("✅  Status: Aman & Terkendali");
@@ -1242,12 +1249,17 @@ public class HomeView {
                 lblSaldoStatus.setStyle("-fx-text-fill: #dc2626; -fx-font-size: 12px; -fx-font-weight: bold;");
             }
         }
+        
+        // KONEKSI VIEW-MODEL: Baris ini menampilkan nominal TOTAL PEMASUKAN ke kartu hijau JavaFX
         if (lblTotalPemasukanValue != null) {
             lblTotalPemasukanValue.setText(formatRupiah(totalIn));
         }
+        
+        // KONEKSI VIEW-MODEL: Baris ini menampilkan nominal TOTAL PENGELUARAN ke kartu merah JavaFX
         if (lblTotalPengeluaranValue != null) {
             lblTotalPengeluaranValue.setText(formatRupiah(totalOut));
         }
+
         
         if (listRecentTransactions != null) {
             listRecentTransactions.getChildren().clear();
@@ -1398,7 +1410,7 @@ public class HomeView {
 
         // Nama bulan dalam bahasa Indonesia
         String[] namaBulanArr = {"Januari","Februari","Maret","April","Mei","Juni",
-                                 "Juli","Agustus","September","Oktober","November","Desember"};
+                                "Juli","Agustus","September","Oktober","November","Desember"};
         String namaBulanIni = namaBulanArr[LocalDate.now().getMonthValue() - 1];
 
         // Buat objek Laporan sesuai model class diagram

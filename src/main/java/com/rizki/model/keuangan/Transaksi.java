@@ -22,6 +22,7 @@ public abstract class Transaksi {
     }
 
     // --- GETTER (Enkapsulasi) ---
+    public abstract String getDetail();
 
     public String getIdTransaksi() {
         return idTransaksi;
@@ -39,7 +40,6 @@ public abstract class Transaksi {
      * Method abstrak getDetail() yang harus diimplementasikan oleh subclass (Pemasukan & Pengeluaran)
      * untuk memberikan detail representasi teks dari masing-masing tipe transaksi.
      */
-    public abstract String getDetail();
 
     public double getJumlah() {
         return jumlah;
